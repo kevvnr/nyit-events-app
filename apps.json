@@ -17,6 +17,13 @@
       "screenshotURLs": [],
       "versions": [
         {
+          "version": "1.6.0",
+          "date": "2026-04-13",
+          "localizedDescription": "v1.6.0 - CampusApp.ipa from GitHub Releases; SideStore source + build scripts; calendar, admin tools, sideload fixes.",
+          "downloadURL": "https://github.com/kevvnr/nyit-events-app/releases/download/v1.6.0/CampusApp.ipa",
+          "size": 20090806
+        },
+        {
           "version": "1.4.0",
           "date": "2026-04-06",
           "localizedDescription": "v1.4.0 - New campus building map pins, improved map view, back button fixes, QR check-in improvements, scheduled reminders, iPad support.",
