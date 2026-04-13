@@ -15,7 +15,6 @@ import 'super_admin_dashboard.dart';
 import 'announcement_screen.dart';
 import 'campaigns_screen.dart';
 import 'room_capacity_screen.dart';
-import 'campus_groups_import_screen.dart';
 
 class AdminScreen extends ConsumerStatefulWidget {
   const AdminScreen({super.key});
@@ -181,27 +180,7 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
                                 ),
                               ),
                             ),
-                            _HeaderAction(
-                              icon: Icons.cloud_download_rounded,
-                              label: 'CG import',
-                              onTap: () => Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) =>
-                                      const CampusGroupsImportScreen(),
-                                ),
-                              ),
-                            ),
                           ],
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'After you install a new build (SideStore / sideload), open CG import again to refresh CampusGroups events in the app.',
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.72),
-                            fontSize: 11,
-                            height: 1.35,
-                          ),
                         ),
                       ],
                       const SizedBox(height: 10),
