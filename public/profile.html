@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NYIT Student Profile</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f1f5f9;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .card {
+      background: white;
+      border-radius: 24px;
+      padding: 0;
+      max-width: 380px;
+      width: 100%;
+      overflow: hidden;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.12);
+    }
+
+    /* Blue header banner */
+    .header-banner {
+      background: linear-gradient(135deg, #1a3a6b 0%, #1565C0 100%);
+      padding: 32px 28px 28px;
+      text-align: center;
+      position: relative;
+    }
+
+    .nyit-label {
+      display: inline-block;
+      background: rgba(255,255,255,0.18);
+      color: white;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.1em;
+      padding: 5px 12px;
+      border-radius: 20px;
+      margin-bottom: 20px;
+      text-transform: uppercase;
+    }
+
+    /* Avatar */
+    .avatar-wrap {
+      width: 90px;
+      height: 90px;
+      border-radius: 50%;
+      border: 3px solid rgba(255,255,255,0.5);
+      margin: 0 auto 14px;
+      overflow: hidden;
+      background: rgba(255,255,255,0.15);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .avatar-wrap img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .avatar-initials {
+      font-size: 34px;
+      font-weight: 800;
+      color: white;
+    }
+
+    .profile-name {
+      font-size: 22px;
+      font-weight: 800;
+      color: white;
+      margin-bottom: 4px;
+    }
+
+    .role-badge {
+      display: inline-block;
+      background: rgba(255,255,255,0.2);
+      color: rgba(255,255,255,0.9);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      padding: 3px 10px;
+      border-radius: 12px;
+      text-transform: uppercase;
+    }
+
+    /* Info section */
+    .info-section {
+      padding: 24px 28px;
+    }
+
+    .info-row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 14px 0;
+      border-bottom: 1px solid #f1f5f9;
+    }
+
+    .info-row:last-child {
+      border-bottom: none;
+    }
+
+    .info-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      background: #eff6ff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+
+    .info-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 2px;
+    }
+
+    .info-value {
+      font-size: 15px;
+      font-weight: 600;
+      color: #1e293b;
+      word-break: break-all;
+    }
+
+    /* Footer */
+    .card-footer {
+      background: #f8fafc;
+      padding: 14px 28px;
+      text-align: center;
+      font-size: 12px;
+      color: #cbd5e1;
+      border-top: 1px solid #f1f5f9;
+    }
+
+    /* Loading */
+    .loading-state {
+      padding: 60px 28px;
+      text-align: center;
+    }
+
+    .spinner {
+      width: 44px;
+      height: 44px;
+      border: 4px solid #e2e8f0;
+      border-top-color: #1565C0;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 16px;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .loading-text {
+      color: #94a3b8;
+      font-size: 14px;
+    }
+
+    /* Error */
+    .error-state {
+      padding: 60px 28px;
+      text-align: center;
+    }
+
+    .error-icon {
+      font-size: 56px;
+      margin-bottom: 16px;
+    }
+
+    .error-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: #dc2626;
+      margin-bottom: 8px;
+    }
+
+    .error-sub {
+      font-size: 14px;
+      color: #64748b;
+      line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+  <div class="card" id="card">
+    <!-- Loading state (default) -->
+    <div id="state-loading" class="loading-state">
+      <div class="spinner"></div>
+      <div class="loading-text">Loading profile...</div>
+    </div>
+
+    <!-- Profile state (hidden until loaded) -->
+    <div id="state-profile" style="display:none">
+      <div class="header-banner">
+        <div class="nyit-label">New York Tech · Student</div>
+        <div class="avatar-wrap" id="avatar-wrap">
+          <div class="avatar-initials" id="avatar-initials">—</div>
+        </div>
+        <div class="profile-name" id="profile-name">—</div>
+        <div class="role-badge" id="profile-role">Student</div>
+      </div>
+
+      <div class="info-section">
+        <div class="info-row">
+          <div class="info-icon">🪪</div>
+          <div>
+            <div class="info-label">Student ID</div>
+            <div class="info-value" id="profile-id">—</div>
+          </div>
+        </div>
+        <div class="info-row">
+          <div class="info-icon">✉️</div>
+          <div>
+            <div class="info-label">Email</div>
+            <div class="info-value" id="profile-email">—</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card-footer">NYIT Old Westbury · Campus Events</div>
+    </div>
+
+    <!-- Error state -->
+    <div id="state-error" style="display:none" class="error-state">
+      <div class="error-icon">❌</div>
+      <div class="error-title">Profile not found</div>
+      <div class="error-sub" id="error-message">
+        This QR code does not match any student profile.
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import {
+      getFirestore,
+      doc,
+      getDoc
+    } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyALu0IPQ-5OztK4GDX9H7UK6qrla_s_cJw",
+      authDomain: "campuseventapp-a56f7.firebaseapp.com",
+      projectId: "campuseventapp-a56f7",
+      storageBucket: "campuseventapp-a56f7.firebasestorage.app",
+      messagingSenderId: "184737519909",
+      appId: "1:184737519909:web:f7114132797d3c2b5f62cc"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    function show(stateId) {
+      ['state-loading', 'state-profile', 'state-error'].forEach(id => {
+        document.getElementById(id).style.display = 'none';
+      });
+      document.getElementById(stateId).style.display =
+        stateId === 'state-profile' ? 'block' : 'block';
+    }
+
+    function getInitials(name) {
+      return (name || '')
+        .split(' ')
+        .filter(w => w.length > 0)
+        .slice(0, 2)
+        .map(w => w[0].toUpperCase())
+        .join('');
+    }
+
+    async function loadProfile() {
+      const params = new URLSearchParams(window.location.search);
+      const uid = params.get('uid');
+
+      if (!uid) {
+        show('state-error');
+        document.getElementById('error-message').textContent =
+          'Invalid QR code — no user ID found.';
+        return;
+      }
+
+      try {
+        const userDoc = await getDoc(doc(db, 'users', uid));
+
+        if (!userDoc.exists()) {
+          show('state-error');
+          document.getElementById('error-message').textContent =
+            'No student profile found for this QR code.';
+          return;
+        }
+
+        const data = userDoc.data();
+        const name = data.name || 'Unknown Student';
+        const email = data.email || 'N/A';
+        const studentId = data.studentId || 'N/A';
+        const role = data.role || 'student';
+        const photoUrl = data.photoUrl || '';
+
+        // Set avatar: photo if available, else initials
+        const avatarWrap = document.getElementById('avatar-wrap');
+        if (photoUrl) {
+          avatarWrap.innerHTML =
+            `<img src="${photoUrl}" alt="Profile photo" onerror="this.parentNode.innerHTML='<div class=\\'avatar-initials\\'>${getInitials(name)}</div>'" />`;
+        } else {
+          document.getElementById('avatar-initials').textContent = getInitials(name);
+        }
+
+        document.getElementById('profile-name').textContent = name;
+        document.getElementById('profile-role').textContent = role.charAt(0).toUpperCase() + role.slice(1);
+        document.getElementById('profile-id').textContent = studentId;
+        document.getElementById('profile-email').textContent = email;
+
+        show('state-profile');
+
+      } catch (e) {
+        console.error('Profile load error:', e);
+        show('state-error');
+        document.getElementById('error-message').textContent =
+          'Something went wrong: ' + e.message;
+      }
+    }
+
+    loadProfile();
+  </script>
+</body>
+</html>

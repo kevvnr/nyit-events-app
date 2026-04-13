@@ -1,0 +1,20 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "M682HBZ2CQ.edu.nyit.campusevents",
+        "paths": [
+          "/checkin/*",
+          "/profile",
+          "/?token=*"
+        ]
+      }
+    ]
+  },
+  "appclips": {
+    "apps": [
+      "M682HBZ2CQ.edu.nyit.campusevents.Clip"
+    ]
+  }
+}

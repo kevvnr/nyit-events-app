@@ -1,0 +1,58 @@
+SideStore release — NYIT Campus Events
+========================================
+
+1) Bump the iOS build (required for every new install)
+   - Edit pubspec.yaml: keep 1.6.0, increase only the number after +  (e.g. +8 → +9).
+
+2) Build the signed IPA (Xcode Personal Team already set)
+   From the campus_app folder:
+     make ipa
+   Artifact to upload:
+     build/ios/ipa/CampusApp.ipa
+
+   (Optional: unsigned bundle for other tools — not typical for your GitHub flow)
+     make ipa-unsigned
+     → build/ios/ipa/CampusApp_unsigned.ipa
+
+3) Create a GitHub Release (your app repo, e.g. nyit-events-app)
+   - Tag the release (example: v1.6.0-build9 — any unique tag is fine).
+   - Upload CampusApp.ipa as a release binary.
+   - Copy the raw download URL (releases/download/.../CampusApp.ipa).
+
+4) Point SideStore’s source JSON at that URL + correct file size
+   From campus_app, using the IPA you just built (updates size automatically).
+
+   Replace --download-url with the REAL link: on the GitHub Release page, right-click
+   the uploaded CampusApp.ipa → Copy Link (must start with https://, not the word PASTE).
+
+   Flat source (default in this repo):
+     ./scripts/update_sidestore_source.sh \
+       --version 1.6.0 \
+       --description "• First change\n• Second change" \
+       --download-url "https://github.com/USER/REPO/releases/download/TAG/CampusApp.ipa" \
+       --ipa build/ios/ipa/CampusApp.ipa \
+       --file public/apps.json
+
+   Nested “versions” source (sidestore/apps.json):
+     ./scripts/update_sidestore_source.sh \
+       --version 1.6.0 \
+       --description "• First change\n• Second change" \
+       --download-url "https://github.com/USER/REPO/releases/download/TAG/CampusApp.ipa" \
+       --ipa build/ios/ipa/CampusApp.ipa \
+       --file sidestore/apps.json
+
+5) Publish the JSON SideStore reads
+   - Commit public/apps.json (and/or sidestore/apps.json) + push to the branch
+     that powers your GitHub Pages source (same URL you added in SideStore).
+
+6) On the iPhone — SideStore
+   - Open SideStore → Sources → select your NYIT source → Refresh.
+   - If nothing changes: pull down to refresh again, or remove the source and
+     re-add the same JSON URL once Pages has finished updating.
+
+Notes
+-----
+- SideStore does not “phone home” for updates; it only sees new binaries when
+  downloadURL + size in apps.json change and you Refresh the source.
+- The IPA filename on GitHub should match your URL; use CampusApp.ipa so it
+  matches this project’s build output.

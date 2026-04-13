@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NYIT Campus Events — Live Dashboard</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #060d1a;
+      color: white;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Animated background */
+    body::before {
+      content: '';
+      position: fixed;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(ellipse at 20% 50%, rgba(21,101,192,0.15) 0%, transparent 50%),
+                  radial-gradient(ellipse at 80% 20%, rgba(74,222,128,0.08) 0%, transparent 50%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* Header */
+    .header {
+      background: rgba(21,101,192,0.95);
+      backdrop-filter: blur(20px);
+      padding: 18px 40px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .nyit-badge {
+      background: white;
+      color: #1565C0;
+      font-weight: 900;
+      font-size: 13px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      letter-spacing: 0.05em;
+      line-height: 1.3;
+      text-align: center;
+    }
+
+    .header-title {
+      font-size: 20px;
+      font-weight: 700;
+    }
+
+    .header-event {
+      font-size: 13px;
+      color: rgba(255,255,255,0.65);
+      margin-top: 2px;
+      max-width: 400px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .live-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(74,222,128,0.15);
+      border: 1px solid rgba(74,222,128,0.3);
+      padding: 7px 14px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 700;
+      color: #4ade80;
+      letter-spacing: 0.05em;
+    }
+
+    .live-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #4ade80;
+      animation: livePulse 1.5s infinite;
+    }
+
+    @keyframes livePulse {
+      0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(74,222,128,0.4); }
+      50% { opacity: 0.7; box-shadow: 0 0 0 6px rgba(74,222,128,0); }
+    }
+
+    .clock {
+      font-size: 13px;
+      color: rgba(255,255,255,0.5);
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Main */
+    .main {
+      padding: 32px 40px;
+      max-width: 1400px;
+      margin: 0 auto;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Event selector */
+    .selector-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 28px;
+    }
+
+    .selector-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: rgba(255,255,255,0.4);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      white-space: nowrap;
+    }
+
+    .event-select {
+      background: rgba(255,255,255,0.05);
+      color: white;
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 12px;
+      padding: 11px 16px;
+      font-size: 15px;
+      font-weight: 500;
+      flex: 1;
+      max-width: 520px;
+      cursor: pointer;
+      outline: none;
+      appearance: none;
+      transition: border-color 0.2s;
+    }
+
+    .event-select:focus {
+      border-color: #1565C0;
+    }
+
+    .event-select option {
+      background: #1e3a5f;
+      color: white;
+    }
+
+    /* No event */
+    .no-event {
+      text-align: center;
+      padding: 100px 40px;
+    }
+
+    .no-event .big-emoji {
+      font-size: 80px;
+      margin-bottom: 24px;
+      display: block;
+    }
+
+    .no-event h2 {
+      font-size: 28px;
+      font-weight: 800;
+      color: rgba(255,255,255,0.7);
+      margin-bottom: 10px;
+    }
+
+    .no-event p {
+      font-size: 16px;
+      color: rgba(255,255,255,0.35);
+    }
+
+    /* Stats */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .stat-card {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 20px;
+      padding: 28px 24px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.2s, border-color 0.2s;
+    }
+
+    .stat-card:hover {
+      transform: translateY(-3px);
+      border-color: rgba(255,255,255,0.15);
+    }
+
+    .stat-card.highlight {
+      background: rgba(21,101,192,0.2);
+      border-color: rgba(21,101,192,0.4);
+    }
+
+    .stat-value {
+      font-size: 56px;
+      font-weight: 900;
+      line-height: 1;
+      margin-bottom: 8px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .stat-value.green { color: #4ade80; }
+    .stat-value.blue  { color: #60a5fa; }
+    .stat-value.amber { color: #fbbf24; }
+    .stat-value.white { color: white; }
+
+    .stat-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: rgba(255,255,255,0.4);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    /* Progress */
+    .progress-card {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 20px;
+      padding: 24px 28px;
+      margin-bottom: 24px;
+    }
+
+    .progress-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+
+    .progress-label {
+      font-size: 14px;
+      font-weight: 600;
+      color: rgba(255,255,255,0.6);
+    }
+
+    .progress-numbers {
+      font-size: 14px;
+      color: rgba(255,255,255,0.4);
+    }
+
+    .progress-pct {
+      font-size: 28px;
+      font-weight: 900;
+      color: #4ade80;
+    }
+
+    .progress-track {
+      background: rgba(255,255,255,0.08);
+      border-radius: 10px;
+      height: 20px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .progress-fill {
+      height: 100%;
+      border-radius: 10px;
+      background: linear-gradient(90deg, #1565C0 0%, #4ade80 100%);
+      transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
+      width: 0%;
+      position: relative;
+    }
+
+    .progress-fill::after {
+      content: '';
+      position: absolute;
+      top: 0; right: 0; bottom: 0;
+      width: 40px;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3));
+      animation: shimmer 2s infinite;
+    }
+
+    @keyframes shimmer {
+      0% { opacity: 0; }
+      50% { opacity: 1; }
+      100% { opacity: 0; }
+    }
+
+    /* Two columns */
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    .col-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+
+    .col-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: rgba(255,255,255,0.4);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .col-badge {
+      font-size: 12px;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 12px;
+    }
+
+    .badge-green {
+      background: rgba(74,222,128,0.15);
+      color: #4ade80;
+      border: 1px solid rgba(74,222,128,0.2);
+    }
+
+    .badge-blue {
+      background: rgba(96,165,250,0.15);
+      color: #60a5fa;
+      border: 1px solid rgba(96,165,250,0.2);
+    }
+
+    .student-list {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 16px;
+      overflow: hidden;
+      max-height: 480px;
+      overflow-y: auto;
+    }
+
+    .student-list::-webkit-scrollbar { width: 3px; }
+    .student-list::-webkit-scrollbar-thumb {
+      background: rgba(255,255,255,0.1);
+      border-radius: 2px;
+    }
+
+    .student-item {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 14px 18px;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      animation: slideIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      transition: background 0.15s;
+    }
+
+    .student-item:last-child { border-bottom: none; }
+    .student-item:hover { background: rgba(255,255,255,0.04); }
+
+    @keyframes slideIn {
+      0%  { transform: translateY(-10px) scale(0.98); opacity: 0; }
+      100%{ transform: translateY(0) scale(1); opacity: 1; }
+    }
+
+    .student-num {
+      font-size: 13px;
+      font-weight: 700;
+      color: rgba(255,255,255,0.2);
+      width: 24px;
+      text-align: center;
+      flex-shrink: 0;
+    }
+
+    .student-avatar {
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+
+    .avatar-checked {
+      background: rgba(74,222,128,0.15);
+      border: 1px solid rgba(74,222,128,0.3);
+    }
+
+    .avatar-rsvp {
+      background: rgba(96,165,250,0.1);
+      border: 1px solid rgba(96,165,250,0.2);
+    }
+
+    .student-info { flex: 1; min-width: 0; }
+
+    .student-name {
+      font-size: 14px;
+      font-weight: 600;
+      color: white;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .student-meta {
+      font-size: 12px;
+      color: rgba(255,255,255,0.35);
+      margin-top: 1px;
+    }
+
+    .method-tag {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 9px;
+      border-radius: 10px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .method-qr {
+      background: rgba(74,222,128,0.12);
+      color: #4ade80;
+      border: 1px solid rgba(74,222,128,0.2);
+    }
+
+    .method-manual {
+      background: rgba(251,191,36,0.12);
+      color: #fbbf24;
+      border: 1px solid rgba(251,191,36,0.2);
+    }
+
+    .method-rsvp {
+      background: rgba(96,165,250,0.1);
+      color: #60a5fa;
+      border: 1px solid rgba(96,165,250,0.15);
+    }
+
+    .empty-list {
+      padding: 48px 24px;
+      text-align: center;
+    }
+
+    .empty-list .emoji { font-size: 36px; display: block; margin-bottom: 10px; }
+    .empty-list p { font-size: 13px; color: rgba(255,255,255,0.25); }
+
+    /* Pop animation */
+    @keyframes popNum {
+      0%  { transform: scale(1); }
+      40% { transform: scale(1.25); }
+      100%{ transform: scale(1); }
+    }
+    .pop { animation: popNum 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+
+    /* New checkin flash */
+    @keyframes flashGreen {
+      0%  { background: rgba(74,222,128,0.2); }
+      100%{ background: transparent; }
+    }
+    .new-checkin { animation: flashGreen 1.5s ease-out; }
+
+    /* Responsive */
+    @media (max-width: 900px) {
+      .stats-row { grid-template-columns: repeat(2, 1fr); }
+      .two-col { grid-template-columns: 1fr; }
+      .main { padding: 20px; }
+      .header { padding: 14px 20px; }
+      .stat-value { font-size: 40px; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <div class="header-left">
+      <div class="nyit-badge">NEW<br>YORK<br>TECH</div>
+      <div>
+        <div class="header-title">Live Check-in Dashboard</div>
+        <div class="header-event" id="header-event">Select an event to begin monitoring</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="clock" id="clock">--:-- --</div>
+      <div class="live-badge">
+        <div class="live-dot"></div>
+        LIVE
+      </div>
+    </div>
+  </div>
+
+  <div class="main">
+
+    <!-- Event selector -->
+    <div class="selector-row">
+      <div class="selector-label">Event</div>
+      <select class="event-select" id="event-select" onchange="selectEvent(this.value)">
+        <option value="">— Select an active event —</option>
+      </select>
+    </div>
+
+    <!-- No event selected -->
+    <div id="no-event-state" class="no-event">
+      <span class="big-emoji">📡</span>
+      <h2>Ready to monitor</h2>
+      <p>Select an active event above to see live check-ins appear in real time</p>
+    </div>
+
+    <!-- Dashboard -->
+    <div id="dashboard" style="display:none">
+
+      <!-- Stats -->
+      <div class="stats-row">
+        <div class="stat-card highlight">
+          <div class="stat-value green" id="stat-checkedin">0</div>
+          <div class="stat-label">✅ Checked In</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value blue" id="stat-rsvp">0</div>
+          <div class="stat-label">🎟 Total RSVPs</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value amber" id="stat-waitlist">0</div>
+          <div class="stat-label">⏳ Waitlist</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value white" id="stat-capacity">0</div>
+          <div class="stat-label">👥 Capacity</div>
+        </div>
+      </div>
+
+      <!-- Progress -->
+      <div class="progress-card">
+        <div class="progress-header">
+          <div>
+            <div class="progress-label">Check-in progress</div>
+            <div class="progress-numbers" id="progress-numbers">0 of 0 attendees checked in</div>
+          </div>
+          <div class="progress-pct" id="stat-pct">0%</div>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill" id="progress-fill"></div>
+        </div>
+      </div>
+
+      <!-- Lists -->
+      <div class="two-col">
+        <div>
+          <div class="col-header">
+            <div class="col-title">Checked In</div>
+            <div class="col-badge badge-green" id="checked-count">0</div>
+          </div>
+          <div class="student-list" id="checkedin-list">
+            <div class="empty-list">
+              <span class="emoji">👋</span>
+              <p>Waiting for first check-in...</p>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="col-header">
+            <div class="col-title">RSVP'd — Not Yet Arrived</div>
+            <div class="col-badge badge-blue" id="rsvp-count">0</div>
+          </div>
+          <div class="student-list" id="rsvp-list">
+            <div class="empty-list">
+              <span class="emoji">⏳</span>
+              <p>No RSVPs yet</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import {
+      getFirestore,
+      collection,
+      query,
+      where,
+      onSnapshot,
+      doc,
+      getDoc,
+    } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyALu0IPQ-5OztK4GDX9H7UK6qrla_s_cJw",
+      authDomain: "campuseventapp-a56f7.firebaseapp.com",
+      projectId: "campuseventapp-a56f7",
+      storageBucket: "campuseventapp-a56f7.firebasestorage.app",
+      messagingSenderId: "184737519909",
+      appId: "1:184737519909:web:f7114132797d3c2b5f62cc"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    let unsubRsvps = null;
+    let unsubWaitlist = null;
+    let unsubEvents = null;
+    let userCache = {};
+    let eventCapacity = 0;
+    let prevCheckedInIds = new Set();
+    let currentEventId = null;
+
+    // Clock
+    function updateClock() {
+      const now = new Date();
+      document.getElementById('clock').textContent =
+        now.toLocaleTimeString('en-US', {
+          hour: 'numeric', minute: '2-digit',
+          second: '2-digit', hour12: true
+        });
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    // Live event list — updates automatically when events are added/changed
+    function listenEvents() {
+      const select = document.getElementById('event-select');
+
+      unsubEvents = onSnapshot(
+        query(
+          collection(db, 'events'),
+          where('status', '==', 'published')
+        ),
+        (snap) => {
+          const nowDate = new Date();
+          const previousValue = select.value;
+
+          // Rebuild options (keep the placeholder)
+          select.innerHTML = '<option value="">— Select an event —</option>';
+
+          if (snap.empty) {
+            const opt = document.createElement('option');
+            opt.disabled = true;
+            opt.textContent = 'No published events found';
+            select.appendChild(opt);
+            return;
+          }
+
+          // Sort: live first, then upcoming, then past — all by startTime desc
+          const sorted = [...snap.docs].sort((a, b) => {
+            const aTime = a.data().startTime?.toDate()?.getTime() ?? 0;
+            const bTime = b.data().startTime?.toDate()?.getTime() ?? 0;
+            return bTime - aTime;
+          });
+
+          sorted.forEach(d => {
+            const data = d.data();
+            const startTime = data.startTime?.toDate();
+            const endTime = data.endTime?.toDate();
+            if (!startTime) return;
+
+            const isLive = startTime <= nowDate && (!endTime || endTime > nowDate);
+            const isUpcoming = startTime > nowDate;
+            const isPast = endTime && endTime < nowDate;
+
+            const dateStr = startTime.toLocaleDateString('en-US', {
+              month: 'short', day: 'numeric',
+              hour: 'numeric', minute: '2-digit', hour12: true
+            });
+
+            const prefix = isLive ? '🟢 LIVE — ' : isUpcoming ? '🔵 Upcoming — ' : '⚫ Past — ';
+
+            const opt = document.createElement('option');
+            opt.value = d.id;
+            opt.textContent = `${prefix}${data.title} · ${dateStr}`;
+            if (isLive) opt.style.fontWeight = '700';
+            select.appendChild(opt);
+          });
+
+          // Re-select previously selected event if it still exists
+          if (previousValue) {
+            select.value = previousValue;
+            // If it was removed, value becomes '' — don't call selectEvent again
+          }
+        },
+        (err) => {
+          console.error('listenEvents error:', err);
+          const opt = document.createElement('option');
+          opt.disabled = true;
+          opt.textContent = 'Error loading events — check console';
+          select.appendChild(opt);
+        }
+      );
+    }
+
+    // Get user with cache
+    async function getUser(userId) {
+      if (userCache[userId]) return userCache[userId];
+      try {
+        const userDoc = await getDoc(doc(db, 'users', userId));
+        if (userDoc.exists()) {
+          userCache[userId] = userDoc.data();
+          return userDoc.data();
+        }
+      } catch (e) {}
+      return { name: 'Unknown Student', studentId: 'N/A' };
+    }
+
+    // Select event
+    window.selectEvent = async function(eventId) {
+      // Stop previous RSVP listeners
+      if (unsubRsvps) { unsubRsvps(); unsubRsvps = null; }
+      if (unsubWaitlist) { unsubWaitlist(); unsubWaitlist = null; }
+      prevCheckedInIds = new Set();
+      currentEventId = eventId || null;
+
+      if (!eventId) {
+        document.getElementById('no-event-state').style.display = 'block';
+        document.getElementById('dashboard').style.display = 'none';
+        document.getElementById('header-event').textContent =
+          'Select an event to begin monitoring';
+        return;
+      }
+
+      // Get event details
+      const eventDoc = await getDoc(doc(db, 'events', eventId));
+      if (!eventDoc.exists()) return;
+      const eventData = eventDoc.data();
+      eventCapacity = eventData.capacity ?? 0;
+
+      document.getElementById('no-event-state').style.display = 'none';
+      document.getElementById('dashboard').style.display = 'block';
+      document.getElementById('header-event').textContent =
+        `${eventData.title} · ${eventData.locationName ?? ''}`;
+      document.getElementById('stat-capacity').textContent = eventCapacity;
+
+      // Live listener — confirmed RSVPs (updates on every RSVP + check-in)
+      unsubRsvps = onSnapshot(
+        query(
+          collection(db, 'rsvps'),
+          where('eventId', '==', eventId),
+          where('status', '==', 'confirmed')
+        ),
+        async (snap) => {
+          const rsvps = snap.docs.map(d => ({ rsvpId: d.id, ...d.data() }));
+
+          // Enrich with user data
+          const enriched = await Promise.all(rsvps.map(async r => {
+            const user = await getUser(r.userId);
+            return { ...r, userName: user.name ?? 'Student', studentId: user.studentId ?? 'N/A' };
+          }));
+
+          const checkedIn = enriched.filter(r => r.checkedIn === true);
+          const notCheckedIn = enriched.filter(r => r.checkedIn !== true);
+          const pct = eventCapacity > 0
+            ? Math.min(Math.round((checkedIn.length / eventCapacity) * 100), 100)
+            : 0;
+
+          // Detect brand-new check-ins for flash animation
+          const newCheckedInIds = new Set(checkedIn.map(r => r.rsvpId));
+          const brandNewIds = [...newCheckedInIds].filter(id => !prevCheckedInIds.has(id));
+          prevCheckedInIds = newCheckedInIds;
+
+          // Update stats
+          animateStat('stat-checkedin', checkedIn.length);
+          animateStat('stat-rsvp', enriched.length);
+          document.getElementById('stat-pct').textContent = pct + '%';
+          document.getElementById('checked-count').textContent = checkedIn.length;
+          document.getElementById('rsvp-count').textContent = notCheckedIn.length;
+          document.getElementById('progress-numbers').textContent =
+            `${checkedIn.length} of ${enriched.length} attendees checked in`;
+          document.getElementById('progress-fill').style.width = pct + '%';
+
+          renderCheckedIn(checkedIn, brandNewIds);
+          renderRsvp(notCheckedIn);
+        },
+        (err) => console.error('rsvp listener error:', err)
+      );
+
+      // Live listener — waitlist count
+      unsubWaitlist = onSnapshot(
+        query(
+          collection(db, 'rsvps'),
+          where('eventId', '==', eventId),
+          where('status', '==', 'waitlist')
+        ),
+        (snap) => animateStat('stat-waitlist', snap.docs.length),
+        (err) => console.error('waitlist listener error:', err)
+      );
+    };
+
+    function animateStat(id, value) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      if (el.textContent !== String(value)) {
+        el.textContent = value;
+        el.classList.remove('pop');
+        void el.offsetWidth;
+        el.classList.add('pop');
+      }
+    }
+
+    function formatTime(ts) {
+      if (!ts) return '';
+      const d = ts.toDate ? ts.toDate() : new Date(ts);
+      return d.toLocaleTimeString('en-US', {
+        hour: 'numeric', minute: '2-digit', hour12: true
+      });
+    }
+
+    function renderCheckedIn(students, brandNewIds = []) {
+      const el = document.getElementById('checkedin-list');
+      if (!el) return;
+
+      if (students.length === 0) {
+        el.innerHTML = `<div class="empty-list"><span class="emoji">👋</span><p>Waiting for first check-in...</p></div>`;
+        return;
+      }
+
+      students.sort((a, b) => (b.checkedInAt?.seconds ?? 0) - (a.checkedInAt?.seconds ?? 0));
+
+      el.innerHTML = students.map((s, i) => {
+        const isNew = brandNewIds.includes(s.rsvpId);
+        const method = s.checkedInViaWeb ? 'QR Scan' : s.manualCheckIn ? 'Manual' : 'App';
+        const methodClass = s.checkedInViaWeb ? 'method-qr' : s.manualCheckIn ? 'method-manual' : 'method-qr';
+        return `
+          <div class="student-item ${isNew ? 'new-checkin' : ''}">
+            <div class="student-num">${i + 1}</div>
+            <div class="student-avatar avatar-checked">✅</div>
+            <div class="student-info">
+              <div class="student-name">${s.userName}</div>
+              <div class="student-meta">ID: ${s.studentId}${s.checkedInAt ? ' · ' + formatTime(s.checkedInAt) : ''}</div>
+            </div>
+            <div class="method-tag ${methodClass}">${method}</div>
+          </div>`;
+      }).join('');
+    }
+
+    function renderRsvp(students) {
+      const el = document.getElementById('rsvp-list');
+      if (!el) return;
+
+      if (students.length === 0) {
+        el.innerHTML = `<div class="empty-list"><span class="emoji">🎉</span><p>Everyone is checked in!</p></div>`;
+        return;
+      }
+
+      el.innerHTML = students.map((s, i) => `
+        <div class="student-item">
+          <div class="student-num">${i + 1}</div>
+          <div class="student-avatar avatar-rsvp">🎓</div>
+          <div class="student-info">
+            <div class="student-name">${s.userName}</div>
+            <div class="student-meta">ID: ${s.studentId}</div>
+          </div>
+          <div class="method-tag method-rsvp">RSVP'd</div>
+        </div>`
+      ).join('');
+    }
+
+    listenEvents();
+  </script>
+</body>
+</html>

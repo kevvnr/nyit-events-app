@@ -1,0 +1,44 @@
+{
+  "name": "NYIT Campus Events",
+  "identifier": "edu.nyit.campusevents.source",
+  "subtitle": "Official NYIT Events app source",
+  "description": "Install and update the NYIT Campus Events app for students and faculty.",
+  "iconURL": "https://campuseventapp-a56f7.web.app/icon.png",
+  "apps": [
+    {
+      "name": "NYIT Events",
+      "bundleIdentifier": "edu.nyit.campusevents",
+      "developerName": "NYIT",
+      "subtitle": "Campus events for students & faculty",
+      "localizedDescription": "Browse, RSVP, and check in to NYIT campus events. Faculty can create and manage events. Scan QR codes at the door for instant check-in.",
+      "iconURL": "https://campuseventapp-a56f7.web.app/icon.png",
+      "screenshotURLs": [],
+      "tintColor": "1565C0",
+      "version": "1.6.0",
+      "versionDate": "2026-04-13",
+      "versionDescription": "• Event calendar (week / month)\\n• Admin: delete event everywhere\\n• Admin: remove user data from app\\n• iOS sideload signing fixes",
+      "downloadURL": "https://github.com/kevvnr/nyit-events-app/releases/download/v1.6.0/CampusApp.ipa",
+      "size": 20090806,
+      "minOSVersion": "14.0",
+      "permissions": [
+        {
+          "type": "camera",
+          "usageDescription": "Used to scan QR codes for event check-in."
+        },
+        {
+          "type": "photos",
+          "usageDescription": "Used to attach event images."
+        },
+        {
+          "type": "location",
+          "usageDescription": "Used to show your location on the campus map and provide walking directions."
+        },
+        {
+          "type": "notifications",
+          "usageDescription": "Used to send event reminders and announcements."
+        }
+      ]
+    }
+  ],
+  "news": []
+}

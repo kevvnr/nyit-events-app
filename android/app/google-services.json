@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "184737519909",
+    "project_id": "campuseventapp-a56f7",
+    "storage_bucket": "campuseventapp-a56f7.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:184737519909:android:bab995686540a2165f62cc",
+        "android_client_info": {
+          "package_name": "com.example.campus_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBba-4J8W-lVllK-ijtbMYpP0XPKfpcB_I"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
