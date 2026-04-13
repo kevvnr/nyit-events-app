@@ -1,0 +1,147 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helper functions ──────────────────────────────────────────
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function isSuperAdmin() {
+      return isSignedIn() && userRole() == 'superadmin';
+    }
+
+    function isApprovedTeacher() {
+      return isSignedIn() &&
+        userRole() == 'teacher' &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.approved == true;
+    }
+
+    function canCreateEvents() {
+      return isSuperAdmin() || isApprovedTeacher();
+    }
+
+    function isAdminOrTeacher() {
+      return isSignedIn() && userRole() in ['teacher', 'superadmin'];
+    }
+
+    // ── Users ─────────────────────────────────────────────────────
+    match /users/{userId} {
+      allow read: if true;
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      // Users can update their own profile; superadmins can update any user (e.g. approve teachers)
+      allow update: if isSignedIn() && (request.auth.uid == userId || isSuperAdmin());
+      allow delete: if isSignedIn() && (request.auth.uid == userId || isSuperAdmin());
+
+      match /pastEvents/{docId} {
+        allow read: if isSignedIn();
+        allow create, update: if isSignedIn() && request.auth.uid == userId;
+        allow delete: if isSignedIn() && (request.auth.uid == userId || isSuperAdmin());
+      }
+    }
+
+    // ── Events ────────────────────────────────────────────────────
+    match /events/{eventId} {
+      allow read: if true;
+
+      // Superadmins and approved teachers can create
+      allow create: if canCreateEvents();
+
+      // Superadmins, event host, or any logged-in user updating only RSVP counts
+      allow update: if isSignedIn() && (
+        isSuperAdmin() ||
+        resource.data.hostId == request.auth.uid ||
+        (
+          resource.data.title == request.resource.data.title &&
+          resource.data.hostId == request.resource.data.hostId &&
+          resource.data.status == request.resource.data.status &&
+          resource.data.capacity == request.resource.data.capacity
+        )
+      );
+
+      // Only superadmins or the event host can delete
+      allow delete: if isSignedIn() && (
+        isSuperAdmin() || resource.data.hostId == request.auth.uid
+      );
+
+      // Reactions subcollection — owner edits; host or superadmin can remove when deleting event
+      match /userReactions/{uid} {
+        allow read: if isSignedIn();
+        allow create, update: if isSignedIn() && request.auth.uid == uid;
+        allow delete: if isSignedIn() && (
+          request.auth.uid == uid ||
+          isSuperAdmin() ||
+          get(/databases/$(database)/documents/events/$(eventId)).data.hostId == request.auth.uid
+        );
+      }
+    }
+
+    // ── RSVPs ─────────────────────────────────────────────────────
+    match /rsvps/{rsvpId} {
+      allow read: if true;
+
+      // Any logged-in user can RSVP for themselves
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+
+      // Owner, admins/teachers, or web QR check-in (unauthenticated, only check-in fields)
+      allow update: if (
+        (isSignedIn() && (
+          resource.data.userId == request.auth.uid ||
+          isAdminOrTeacher()
+        )) ||
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['checkedIn', 'checkedInAt', 'checkedInViaWeb'])
+      );
+
+      // Only admins/teachers can delete RSVPs
+      allow delete: if isAdminOrTeacher();
+    }
+
+    // ── Notifications ─────────────────────────────────────────────
+    match /notifications/{notifId} {
+      allow read: if isSignedIn() && (
+        resource.data.userId == request.auth.uid || isAdminOrTeacher()
+      );
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && (
+        resource.data.userId == request.auth.uid || isAdminOrTeacher()
+      );
+      allow delete: if isSignedIn() && (
+        resource.data.userId == request.auth.uid || isAdminOrTeacher()
+      );
+    }
+
+    // ── Announcements ─────────────────────────────────────────────
+    match /announcements/{announcementId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isSuperAdmin();
+    }
+
+    // ── Study Groups ──────────────────────────────────────────────
+    match /studyGroups/{groupId} {
+      // Anyone logged in can read study groups
+      allow read: if isSignedIn();
+
+      // Any logged-in user can create a study group they host
+      allow create: if isSignedIn() &&
+        request.resource.data.hostId == request.auth.uid;
+
+      // Host or admin can update anything; any member can update memberIds/memberNames (for join/leave)
+      allow update: if isSignedIn() && (
+        resource.data.hostId == request.auth.uid ||
+        isAdminOrTeacher() ||
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['memberIds', 'memberNames'])
+      );
+
+      // Only host or admin can delete
+      allow delete: if isSignedIn() && (
+        resource.data.hostId == request.auth.uid || isAdminOrTeacher()
+      );
+    }
+  }
+}

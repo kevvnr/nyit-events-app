@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NYIT Campus Events — Check In</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f1f5f9;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .card {
+      background: white;
+      border-radius: 24px;
+      padding: 40px 32px;
+      max-width: 400px;
+      width: 100%;
+      text-align: center;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.1);
+    }
+
+    .nyit-header {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin-bottom: 28px;
+    }
+
+    .nyit-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #1565C0;
+    }
+
+    .nyit-name {
+      font-size: 13px;
+      font-weight: 700;
+      color: #1565C0;
+      letter-spacing: 0.05em;
+    }
+
+    .icon-circle {
+      width: 100px;
+      height: 100px;
+      border-radius: 50%;
+      margin: 0 auto 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 48px;
+    }
+
+    .icon-circle.loading { background: #f1f5f9; }
+    .icon-circle.success { background: #dcfce7; animation: pop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+    .icon-circle.error   { background: #fee2e2; animation: pop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+    .icon-circle.warning { background: #fef9c3; animation: pop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+
+    @keyframes pop {
+      0%   { transform: scale(0.4); opacity: 0; }
+      70%  { transform: scale(1.15); }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    .status-title {
+      font-size: 24px;
+      font-weight: 800;
+      margin-bottom: 8px;
+    }
+    .status-title.success { color: #16a34a; }
+    .status-title.error   { color: #dc2626; }
+    .status-title.warning { color: #d97706; }
+    .status-title.loading { color: #64748b; }
+
+    .status-subtitle {
+      font-size: 14px;
+      color: #64748b;
+      margin-bottom: 28px;
+      line-height: 1.6;
+    }
+
+    .student-card {
+      background: #f8fafc;
+      border-radius: 16px;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      text-align: left;
+      margin-bottom: 16px;
+      border: 1px solid #e2e8f0;
+    }
+
+    .student-avatar {
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      background: #dbeafe;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      flex-shrink: 0;
+    }
+
+    .student-name {
+      font-size: 17px;
+      font-weight: 700;
+      color: #1e293b;
+      margin-bottom: 2px;
+    }
+
+    .student-meta {
+      font-size: 13px;
+      color: #64748b;
+    }
+
+    .event-card {
+      background: #eff6ff;
+      border-radius: 12px;
+      padding: 12px 16px;
+      margin-bottom: 20px;
+      text-align: left;
+      border: 1px solid #bfdbfe;
+    }
+
+    .event-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: #3b82f6;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 4px;
+    }
+
+    .event-name {
+      font-size: 15px;
+      font-weight: 600;
+      color: #1e3a8a;
+    }
+
+    .event-location {
+      font-size: 12px;
+      color: #64748b;
+      margin-top: 3px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 16px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 24px;
+    }
+    .badge.success { background: #dcfce7; color: #16a34a; }
+    .badge.warning { background: #fef9c3; color: #d97706; }
+    .badge.error   { background: #fee2e2; color: #dc2626; }
+
+    .checkin-time {
+      font-size: 12px;
+      color: #94a3b8;
+      margin-bottom: 16px;
+    }
+
+    .spinner {
+      width: 44px;
+      height: 44px;
+      border: 4px solid #e2e8f0;
+      border-top-color: #1565C0;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .divider {
+      height: 1px;
+      background: #f1f5f9;
+      margin: 8px 0 20px;
+    }
+
+    .footer {
+      font-size: 12px;
+      color: #cbd5e1;
+      margin-top: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="nyit-header">
+      <div class="nyit-dot"></div>
+      <div class="nyit-name">NYIT CAMPUS EVENTS</div>
+      <div class="nyit-dot"></div>
+    </div>
+
+    <!-- Loading -->
+    <div id="state-loading">
+      <div class="icon-circle loading">
+        <div class="spinner"></div>
+      </div>
+      <div class="status-title loading">Checking in...</div>
+      <div class="status-subtitle">Verifying your QR code</div>
+    </div>
+
+    <!-- Success -->
+    <div id="state-success" style="display:none">
+      <div class="icon-circle success">✅</div>
+      <div class="status-title success">Successfully checked in!</div>
+      <div class="status-subtitle">You're all set. Welcome to the event!</div>
+      <div class="student-card">
+        <div class="student-avatar">🎓</div>
+        <div>
+          <div class="student-name" id="success-name">—</div>
+          <div class="student-meta" id="success-id">—</div>
+        </div>
+      </div>
+      <div class="event-card">
+        <div class="event-label">📅 Event</div>
+        <div class="event-name" id="success-event">—</div>
+        <div class="event-location" id="success-location"></div>
+      </div>
+      <div class="checkin-time" id="success-time">—</div>
+      <div class="badge success">✓ &nbsp;RSVP confirmed</div>
+      <div class="divider"></div>
+      <div class="footer">NYIT Old Westbury · Campus Events</div>
+    </div>
+
+    <!-- Already checked in -->
+    <div id="state-already" style="display:none">
+      <div class="icon-circle warning">⚠️</div>
+      <div class="status-title warning">Already checked in</div>
+      <div class="status-subtitle">This QR code has already been scanned for this event.</div>
+      <div class="student-card">
+        <div class="student-avatar">🎓</div>
+        <div>
+          <div class="student-name" id="already-name">—</div>
+          <div class="student-meta" id="already-id">—</div>
+        </div>
+      </div>
+      <div class="event-card">
+        <div class="event-label">📅 Event</div>
+        <div class="event-name" id="already-event">—</div>
+      </div>
+      <div class="checkin-time" id="already-time">—</div>
+      <div class="badge warning">⚠ &nbsp;Duplicate scan</div>
+      <div class="divider"></div>
+      <div class="footer">NYIT Old Westbury · Campus Events</div>
+    </div>
+
+    <!-- Not RSVPed -->
+    <div id="state-norsvp" style="display:none">
+      <div class="icon-circle error">🚫</div>
+      <div class="status-title error">Not registered</div>
+      <div class="status-subtitle">This student did not RSVP for this event. Please contact the event organizer.</div>
+      <div class="badge error">✗ &nbsp;No RSVP found</div>
+      <div class="divider"></div>
+      <div class="footer">NYIT Old Westbury · Campus Events</div>
+    </div>
+
+    <!-- Generic Error -->
+    <div id="state-error" style="display:none">
+      <div class="icon-circle error">❌</div>
+      <div class="status-title error">Check-in failed</div>
+      <div class="status-subtitle" id="error-message">
+        This QR code is invalid or not recognized.
+      </div>
+      <div class="badge error">✗ &nbsp;Error</div>
+      <div class="divider"></div>
+      <div class="footer">NYIT Old Westbury · Campus Events</div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import {
+      getFirestore,
+      collection,
+      query,
+      where,
+      getDocs,
+      updateDoc,
+      doc,
+      getDoc,
+      Timestamp
+    } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyALu0IPQ-5OztK4GDX9H7UK6qrla_s_cJw",
+      authDomain: "campuseventapp-a56f7.firebaseapp.com",
+      projectId: "campuseventapp-a56f7",
+      storageBucket: "campuseventapp-a56f7.firebasestorage.app",
+      messagingSenderId: "184737519909",
+      appId: "1:184737519909:web:f7114132797d3c2b5f62cc"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    function show(stateId) {
+      ['state-loading','state-success','state-already','state-norsvp','state-error']
+        .forEach(id => {
+          document.getElementById(id).style.display = 'none';
+        });
+      document.getElementById(stateId).style.display = 'block';
+    }
+
+    function formatTime(date) {
+      return 'Checked in at ' + date.toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      }) + ' · ' + date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+      });
+    }
+
+    async function checkIn() {
+      const params = new URLSearchParams(window.location.search);
+      const token = params.get('token');
+      const eventId = params.get('eventId');
+
+      if (!token || !eventId) {
+        show('state-error');
+        document.getElementById('error-message').textContent =
+          'Invalid QR code — missing token or event ID. Please use the QR code from the event detail screen.';
+        return;
+      }
+
+      try {
+        // Search by qrToken + eventId
+        const rsvpSnap = await getDocs(query(
+          collection(db, 'rsvps'),
+          where('qrToken', '==', token),
+          where('eventId', '==', eventId),
+          where('status', '==', 'confirmed')
+        ));
+
+        // No RSVP found for this token — student did not RSVP
+        if (rsvpSnap.empty) {
+          show('state-norsvp');
+          return;
+        }
+
+        const rsvpDoc = rsvpSnap.docs[0];
+        const rsvpData = rsvpDoc.data();
+
+        // Fetch user info
+        let userName = 'Student';
+        let studentId = 'N/A';
+        try {
+          const userDoc = await getDoc(doc(db, 'users', rsvpData.userId));
+          if (userDoc.exists()) {
+            userName = userDoc.data().name ?? 'Student';
+            studentId = userDoc.data().studentId ?? 'N/A';
+          }
+        } catch (e) {
+          console.warn('Could not fetch user:', e);
+        }
+
+        // Fetch event info
+        let eventTitle = 'Campus Event';
+        let eventLocation = '';
+        try {
+          const eventDoc = await getDoc(doc(db, 'events', eventId));
+          if (eventDoc.exists()) {
+            eventTitle = eventDoc.data().title ?? 'Campus Event';
+            eventLocation = eventDoc.data().locationName ?? '';
+          }
+        } catch (e) {
+          console.warn('Could not fetch event:', e);
+        }
+
+        // Already checked in — duplicate scan
+        if (rsvpData.checkedIn === true) {
+          document.getElementById('already-name').textContent = userName;
+          document.getElementById('already-id').textContent = 'Student ID: ' + studentId;
+          document.getElementById('already-event').textContent = eventTitle;
+          const prevTime = rsvpData.checkedInAt
+            ? formatTime(rsvpData.checkedInAt.toDate())
+            : '';
+          document.getElementById('already-time').textContent = prevTime;
+          show('state-already');
+          return;
+        }
+
+        // Mark as checked in
+        await updateDoc(doc(db, 'rsvps', rsvpDoc.id), {
+          checkedIn: true,
+          checkedInAt: Timestamp.now(),
+          checkedInViaWeb: true,
+        });
+
+        // Show success
+        document.getElementById('success-name').textContent = userName;
+        document.getElementById('success-id').textContent = 'Student ID: ' + studentId;
+        document.getElementById('success-event').textContent = eventTitle;
+        document.getElementById('success-location').textContent =
+          eventLocation ? '📍 ' + eventLocation : '';
+        document.getElementById('success-time').textContent = formatTime(new Date());
+
+        show('state-success');
+
+      } catch (e) {
+        console.error('Check-in error:', e);
+        show('state-error');
+        document.getElementById('error-message').textContent =
+          'Something went wrong: ' + e.message;
+      }
+    }
+
+    checkIn();
+  </script>
+</body>
+</html>

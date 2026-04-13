@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(flutter pub:*)",
+      "Read(//Users/kevin/development/flutter/bin/**)",
+      "Read(//opt/homebrew/bin/**)",
+      "Read(//Users/kevin/**)",
+      "Bash(/Users/kevin/Desktop/Spring 2026/.sdks/flutter/bin/flutter analyze --no-pub)",
+      "Bash(ls ~/.nvm/versions/node/*/bin/firebase)",
+      "Read(//usr/local/bin/**)",
+      "Read(//opt/homebrew/Cellar/firebase-cli/15.9.0/libexec/lib/node_modules/firebase-tools/lib/bin/**)",
+      "Bash(npx firebase:*)",
+      "Bash(/opt/homebrew/bin/firebase deploy:*)",
+      "Bash(/Users/kevin/Desktop/Spring 2026/.sdks/flutter/bin/flutter analyze lib/screens/feed/feed_screen.dart)",
+      "Bash(/Users/kevin/Desktop/Spring 2026/.sdks/flutter/bin/flutter analyze lib/)"
+    ]
+  }
+}

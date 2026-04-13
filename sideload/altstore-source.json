@@ -1,0 +1,17 @@
+{
+  "name": "NYIT Campus Events",
+  "identifier": "edu.nyit.campusevents.altsource",
+  "apps": [
+    {
+      "name": "NYIT Events",
+      "bundleIdentifier": "edu.nyit.campusevents",
+      "developerName": "NYIT",
+      "subtitle": "Campus events",
+      "version": "1.6.0",
+      "versionDate": "2026-04-09T12:00:00-04:00",
+      "size": 20074648,
+      "downloadURL": "PASTE_DIRECT_DOWNLOAD_URL_TO_campusapp.ipa_HERE",
+      "localizedDescription": "NYIT campus events (sideload build)."
+    }
+  ]
+}
