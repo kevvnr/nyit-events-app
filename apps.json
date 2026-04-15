@@ -18,10 +18,10 @@
       "versions": [
         {
           "version": "1.6.0",
-          "date": "2026-04-13",
-          "localizedDescription": "v1.6.0 - CampusApp.ipa from GitHub Releases; SideStore source + build scripts; calendar, admin tools, sideload fixes.",
-          "downloadURL": "https://github.com/kevvnr/nyit-events-app/releases/download/v1.6.0/CampusApp.ipa",
-          "size": 20090806
+          "date": "2026-04-15",
+          "localizedDescription": "• Admin UI polish\\n• Spark-safe account deletion flow\\n• CampusGroups import removed",
+          "downloadURL": "https://github.com/kevvnr/nyit-events-app/releases/download/v1.6.0-build8/CampusApp.ipa",
+          "size": 20034890
         },
         {
           "version": "1.4.0",
