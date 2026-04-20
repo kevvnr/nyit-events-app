@@ -157,7 +157,6 @@ class EventService {
       if (doc.exists) return EventModel.fromFirestore(doc);
       return null;
     } catch (e) {
-      print('getEventById error: $e');
       return null;
     }
   }
@@ -352,7 +351,7 @@ class EventService {
           .get();
       await _deleteDocumentsInBatches(pastSnap.docs);
     } catch (e) {
-      print('permanentlyDeleteEvent pastEvents cleanup: $e');
+      // non-fatal — pastEvents subcollection cleanup skipped
     }
 
     final reactionsSnap = await eventRef.collection('userReactions').get();
@@ -364,7 +363,7 @@ class EventService {
           await FirebaseStorage.instance.refFromURL(imageUrl).delete();
         }
       } catch (e) {
-        print('permanentlyDeleteEvent storage: $e');
+        // non-fatal — storage object already deleted or unreachable
       }
     }
 
@@ -573,7 +572,6 @@ class EventService {
       if (snapshot.docs.isEmpty) return null;
       return {'id': snapshot.docs.first.id, ...snapshot.docs.first.data()};
     } catch (e) {
-      print('getUserRsvp error: $e');
       return null;
     }
   }
@@ -591,7 +589,6 @@ class EventService {
           .get();
       return snapshot.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList();
     } catch (e) {
-      print('getUserRsvps error: $e');
       return [];
     }
   }
@@ -725,7 +722,6 @@ class EventService {
           .get();
       return snapshot.docs.length;
     } catch (e) {
-      print('getCheckedInCount error: $e');
       return 0;
     }
   }
@@ -808,7 +804,6 @@ class EventService {
           .get();
       return snapshot.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList();
     } catch (e) {
-      print('getPastEvents error: $e');
       return [];
     }
   }
@@ -855,7 +850,7 @@ class EventService {
         'waitlistCount': waitlist.docs.length,
       });
     } catch (e) {
-      print('recalculateEventCounts error: $e');
+      // non-fatal — count drift remains until next recalculation
     }
   }
 
@@ -867,7 +862,7 @@ class EventService {
         await recalculateEventCounts(event.id);
       }
     } catch (e) {
-      print('recalculateAllEventCounts error: $e');
+      // non-fatal
     }
   }
 
@@ -928,7 +923,6 @@ class EventService {
       await batch.commit();
       return count;
     } catch (e) {
-      print('sendEventReminder error: $e');
       return 0;
     }
   }
@@ -969,7 +963,6 @@ class EventService {
       }
       return events;
     } catch (e) {
-      print('getArchivedEvents error: $e');
       return [];
     }
   }

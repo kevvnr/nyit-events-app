@@ -104,7 +104,6 @@ class EventsNotifier extends Notifier<AsyncValue<List<EventModel>>> {
     state = AsyncValue.data([...current, event]);
     return event;
   } catch (e) {
-    print('createEvent error: $e');
     return null;
   }
 }
@@ -113,7 +112,7 @@ class EventsNotifier extends Notifier<AsyncValue<List<EventModel>>> {
       await ref.read(eventServiceProvider).cancelEvent(eventId);
       await loadEvents();
     } catch (e) {
-      print('cancelEvent error: $e');
+      rethrow;
     }
   }
 }

@@ -56,7 +56,7 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen>
           .getCheckedInCount(widget.event.id);
       if (mounted) setState(() => _checkedInCount = count);
     } catch (e) {
-      print('loadCheckedInCount error: $e');
+      // non-fatal — count stays at 0 until next successful load
     }
   }
 

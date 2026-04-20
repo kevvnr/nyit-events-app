@@ -16,16 +16,10 @@ class AuthService {
 
   Future<UserModel?> getUserModel(String uid) async {
     try {
-      print('Getting user model for uid: $uid');
       final doc = await _db.collection(AppConfig.usersCol).doc(uid).get();
-      if (doc.exists) {
-        print('User doc found!');
-        return UserModel.fromFirestore(doc);
-      }
-      print('User doc not found');
+      if (doc.exists) return UserModel.fromFirestore(doc);
       return null;
     } catch (e) {
-      print('getUserModel error: $e');
       return null;
     }
   }
@@ -66,21 +60,15 @@ class AuthService {
     }
 
     try {
-      print('Step 1: Creating Firebase Auth account for ${email.trim()}');
       final credential = await _auth.createUserWithEmailAndPassword(
         email: email.trim(),
         password: password,
       );
-      print('Step 2: Auth account created — uid: ${credential.user!.uid}');
 
       final uid = credential.user!.uid;
       // Students and superadmins are auto-approved; teachers need manual approval
       final bool approved =
           role == AppConfig.roleStudent || role == AppConfig.roleSuperAdmin;
-
-      print('Step 3: Saving user to Firestore...');
-      print('Collection: ${AppConfig.usersCol}');
-      print('Document ID: $uid');
 
       final userData = {
         'name': name.trim(),
@@ -99,14 +87,9 @@ class AuthService {
         'createdAt': FieldValue.serverTimestamp(),
       };
 
-      print('Data to save: $userData');
-
       await _db.collection(AppConfig.usersCol).doc(uid).set(userData);
 
-      print('Step 4: Firestore save complete!');
-
       await credential.user!.updateDisplayName(name.trim());
-      print('Step 5: Registration complete!');
 
       final user = UserModel(
         uid: uid,
@@ -120,7 +103,6 @@ class AuthService {
 
       return user;
     } catch (e) {
-      print('Registration error: $e');
       rethrow;
     }
   }
@@ -137,12 +119,10 @@ class AuthService {
     }
 
     try {
-      print('Logging in: ${email.trim()}');
       final credential = await _auth.signInWithEmailAndPassword(
         email: email.trim(),
         password: password,
       );
-      print('Login success: ${credential.user!.uid}');
 
       final userModel = await getUserModel(credential.user!.uid);
 
@@ -162,7 +142,6 @@ class AuthService {
       await AnalyticsService.instance.setUserProperty('role', userModel.role);
       return userModel;
     } catch (e) {
-      print('Login error: $e');
       rethrow;
     }
   }
@@ -177,11 +156,9 @@ class AuthService {
       }
       final token = await FirebaseMessaging.instance.getToken();
       if (token != null) {
-        final now = Timestamp.now();
         await _db.collection(AppConfig.usersCol).doc(uid).update({
           'fcmToken': token,
-          'lastActiveAt': now,
-          'segmentRole': _auth.currentUser != null ? 'authenticated' : 'guest',
+          'lastActiveAt': Timestamp.now(),
         });
       }
     } catch (_) {

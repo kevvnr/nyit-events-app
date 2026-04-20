@@ -173,8 +173,11 @@ class _ARWayfindingScreenState extends State<ARWayfindingScreen>
     );
   }
 
-  String _formatDist(double m) =>
-      m < 1000 ? '${m.round()} m' : '${(m / 1000).toStringAsFixed(1)} km';
+  String _formatDist(double m) {
+    final feet = m * 3.28084;
+    if (feet < 1000) return '${feet.round()} ft';
+    return '${(feet / 5280).toStringAsFixed(1)} mi';
+  }
 
   // ── Normalise angle to -180..180 ──────────────────
   double _norm(double a) {

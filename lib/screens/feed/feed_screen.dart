@@ -356,7 +356,16 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
                   onChanged: _onSearchChanged,
                   decoration: InputDecoration(
                     hintText: 'Search events...',
-                    prefixIcon: const Icon(Icons.search_rounded, size: 20),
+                    prefixIcon: _algoliaSearching
+                        ? const Padding(
+                            padding: EdgeInsets.all(12),
+                            child: SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          )
+                        : const Icon(Icons.search_rounded, size: 20),
                     suffixIcon: IconButton(
                       icon: const Icon(Icons.close_rounded, size: 20),
                       onPressed: () {

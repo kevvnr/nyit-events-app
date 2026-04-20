@@ -322,8 +322,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               children: [
                 NavigationRail(
                   selectedIndex: _currentIndex,
-                  onDestinationSelected: (i) =>
-                      setState(() => _currentIndex = i),
+                  onDestinationSelected: _selectTab,
                   labelType: NavigationRailLabelType.all,
                   backgroundColor: Theme.of(context).colorScheme.surface,
                   selectedIconTheme: const IconThemeData(

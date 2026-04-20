@@ -21,7 +21,6 @@ class AppConfig {
   static const String appConfigCol = 'appConfig';
   static const String appConfigDoc = 'main';
   static const String roomCapacityOverridesField = 'roomCapacityOverrides';
-  static const String campaignsCol = 'campaigns';
 
   // User roles
   static const String roleStudent = 'student';

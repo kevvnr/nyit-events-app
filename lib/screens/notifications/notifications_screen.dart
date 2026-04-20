@@ -4,8 +4,6 @@ import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../config/app_config.dart';
 import '../../providers/auth_provider.dart';
-import '../../providers/notification_provider.dart';
-import '../../providers/event_provider.dart';
 
 class NotificationsScreen extends ConsumerWidget {
   const NotificationsScreen({super.key});

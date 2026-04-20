@@ -121,6 +121,14 @@ service cloud.firestore {
       allow create, update, delete: if isSuperAdmin();
     }
 
+    // ── App Config (room capacity overrides, feature flags) ───
+    match /appConfig/{docId} {
+      // Any signed-in user can read so room capacities load during event creation.
+      allow read: if isSignedIn();
+      // Only superadmins can write (e.g. override room capacities).
+      allow write: if isSuperAdmin();
+    }
+
     // ── Study Groups ──────────────────────────────────────────────
     match /studyGroups/{groupId} {
       // Anyone logged in can read study groups

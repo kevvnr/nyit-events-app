@@ -88,7 +88,7 @@ Future<void> _loadStats() async {
     final sortedEvents = events
         .map((e) => {
               'id': e.id,
-              ...e.data() as Map<String, dynamic>
+              ...e.data(),
             })
         .toList()
       ..sort((a, b) => (b['rsvpCount'] ?? 0)
@@ -118,7 +118,7 @@ Future<void> _loadStats() async {
 
     final nowTs = DateTime.now();
     final activeEventCount = results[0].docs.where((doc) {
-      final data = doc.data() as Map<String, dynamic>;
+      final data = doc.data();
       final endTs = data['endTime'];
       if (endTs == null) return false;
       final endTime = (endTs as Timestamp).toDate();
@@ -135,22 +135,15 @@ Future<void> _loadStats() async {
         _pendingApprovals = pendingTeacherDocs.length;
         _topEvents = sortedEvents.take(5).toList();
         _students = studentDocs
-            .map((d) => {
-                  'id': d.id,
-                  ...d.data() as Map<String, dynamic>
-                })
+            .map((d) => {'id': d.id, ...d.data()})
             .toList();
         _teachers = approvedTeacherDocs
-            .map((d) => {
-                  'id': d.id,
-                  ...d.data() as Map<String, dynamic>
-                })
+            .map((d) => {'id': d.id, ...d.data()})
             .toList();
         _isLoading = false;
       });
     }
   } catch (e) {
-    print('loadStats error: $e');
     if (mounted) setState(() => _isLoading = false);
   }
 }
