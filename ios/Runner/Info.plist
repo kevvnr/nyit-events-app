@@ -45,7 +45,7 @@
 		<string>edu.nyit.campusevents.showCheckinQr</string>
 	</array>
 	<key>NSCameraUsageDescription</key>
-	<string>NYIT Events uses the camera to scan QR codes for event check-in.</string>
+	<string>NYIT Events uses the camera to scan QR codes for event check-in and for AR venue wayfinding.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>NYIT Events needs photo library access to save event QR codes.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>

@@ -13,7 +13,6 @@ import 'edit_event_screen.dart';
 import 'teacher_approval_screen.dart';
 import 'super_admin_dashboard.dart';
 import 'announcement_screen.dart';
-import 'campaigns_screen.dart';
 import 'room_capacity_screen.dart';
 
 class AdminScreen extends ConsumerStatefulWidget {
@@ -43,8 +42,11 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      body: CustomScrollView(
-        slivers: [
+      body: RefreshIndicator(
+        onRefresh: () => ref.read(eventsNotifierProvider.notifier).loadEvents(),
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
           // Header
           SliverToBoxAdapter(
             child: Container(
@@ -66,7 +68,7 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
                       Row(
                         children: [
                           const Text(
-                            'Manage',
+                            'Manage Events',
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 22,
@@ -126,13 +128,13 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
                       Text(
                         _showPastEvents
                             ? 'Past events view'
-                            : 'Hi ${user?.name.split(' ').first ?? ''}',
+                            : 'Hi ${user?.name.split(' ').first ?? ''} · Admin controls',
                         style: TextStyle(
                           color: Colors.white.withOpacity(0.75),
                           fontSize: 13,
                         ),
                       ),
-                      // Superadmin quick actions — Wrap so every chip stays on-screen (no sideways scroll).
+                      // Superadmin quick actions — Wrap so every chip stays on-screen.
                       if (isSuperAdmin) ...[
                         const SizedBox(height: 12),
                         Wrap(
@@ -147,16 +149,6 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
                                 context,
                                 MaterialPageRoute(
                                   builder: (_) => const AnnouncementScreen(),
-                                ),
-                              ),
-                            ),
-                            _HeaderAction(
-                              icon: Icons.send_to_mobile_rounded,
-                              label: 'Campaigns',
-                              onTap: () => Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const CampaignsScreen(),
                                 ),
                               ),
                             ),
@@ -180,20 +172,31 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
                                 ),
                               ),
                             ),
+                            _HeaderAction(
+                              icon: Icons.meeting_room_rounded,
+                              label: 'Room limits',
+                              onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const RoomCapacityScreen(),
+                                ),
+                              ),
+                            ),
                           ],
                         ),
-                      ],
-                      const SizedBox(height: 10),
-                      _HeaderAction(
-                        icon: Icons.meeting_room_rounded,
-                        label: 'Room limits',
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const RoomCapacityScreen(),
+                      ] else ...[
+                        const SizedBox(height: 10),
+                        _HeaderAction(
+                          icon: Icons.meeting_room_rounded,
+                          label: 'Room limits',
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const RoomCapacityScreen(),
+                            ),
                           ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
                 ),
@@ -262,29 +265,40 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
                           children: [
                             Expanded(
                               child: _StatPill(
-                                label: 'Total',
-                                value:
-                                    '${allMyEvents.where((e) => e.endTime.isAfter(now)).length}',
+                                label: _showPastEvents ? 'Past' : 'Active',
+                                value: _showPastEvents
+                                    ? '${myEvents.length}'
+                                    : '${allMyEvents.where((e) => e.endTime.isAfter(now)).length}',
                                 color: const Color(0xFF1565C0),
-                                icon: Icons.calendar_month_rounded,
+                                icon: _showPastEvents
+                                    ? Icons.history_rounded
+                                    : Icons.calendar_month_rounded,
                               ),
                             ),
                             const SizedBox(width: 8),
                             Expanded(
                               child: _StatPill(
-                                label: 'Live now',
-                                value:
-                                    '${allMyEvents.where((e) => e.isHappeningNow).length}',
-                                color: Colors.green.shade700,
-                                icon: Icons.bolt_rounded,
+                                label: _showPastEvents ? 'Avg fill' : 'Live now',
+                                value: _showPastEvents
+                                    ? (myEvents.isEmpty
+                                        ? '—'
+                                        : '${((myEvents.fold<double>(0, (s, e) => s + e.fillPercent) / myEvents.length) * 100).round()}%')
+                                    : '${allMyEvents.where((e) => e.isHappeningNow).length}',
+                                color: _showPastEvents
+                                    ? Colors.teal.shade700
+                                    : Colors.green.shade700,
+                                icon: _showPastEvents
+                                    ? Icons.bar_chart_rounded
+                                    : Icons.bolt_rounded,
                               ),
                             ),
                             const SizedBox(width: 8),
                             Expanded(
                               child: _StatPill(
-                                label: 'Total RSVPs',
-                                value:
-                                    '${allMyEvents.where((e) => e.endTime.isAfter(now)).fold(0, (sum, e) => sum + e.rsvpCount)}',
+                                label: 'RSVPs',
+                                value: _showPastEvents
+                                    ? '${myEvents.fold(0, (sum, e) => sum + e.rsvpCount)}'
+                                    : '${allMyEvents.where((e) => e.endTime.isAfter(now)).fold(0, (sum, e) => sum + e.rsvpCount)}',
                                 color: const Color(0xFF7B1FA2),
                                 icon: Icons.people_alt_rounded,
                               ),
@@ -397,7 +411,8 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
               },
             ),
           ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -419,17 +434,32 @@ class _HeaderAction extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.15),
+          color: Colors.white.withOpacity(0.18),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withOpacity(0.3)),
+          border: Border.all(color: Colors.white.withOpacity(0.35)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.06),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+          ],
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: Colors.white, size: 14),
-            const SizedBox(width: 4),
+            Container(
+              width: 20,
+              height: 20,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.18),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: Colors.white, size: 12),
+            ),
+            const SizedBox(width: 6),
             Text(
               label,
               style: const TextStyle(
@@ -485,7 +515,7 @@ class _StatPill extends StatelessWidget {
             Text(
               value,
               style: TextStyle(
-                fontSize: 20,
+                fontSize: 24,
                 fontWeight: FontWeight.w800,
                 color: color,
               ),
@@ -495,7 +525,7 @@ class _StatPill extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                fontSize: 10,
+                fontSize: 11,
                 color: color.withOpacity(0.85),
                 fontWeight: FontWeight.w600,
               ),
@@ -566,7 +596,7 @@ class _AdminEventCard extends ConsumerWidget {
       child: Column(
         children: [
           Container(
-            height: 6,
+            height: 8,
             decoration: BoxDecoration(
               color: isPast
                   ? Colors.grey.shade400
@@ -579,7 +609,7 @@ class _AdminEventCard extends ConsumerWidget {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -589,7 +619,7 @@ class _AdminEventCard extends ConsumerWidget {
                       child: Text(
                         event.title,
                         style: TextStyle(
-                          fontSize: 16,
+                          fontSize: 17,
                           fontWeight: FontWeight.w700,
                           color: isPast
                               ? Colors.grey.shade500
@@ -665,21 +695,21 @@ class _AdminEventCard extends ConsumerWidget {
                   children: [
                     Icon(
                       Icons.access_time_rounded,
-                      size: 13,
+                      size: 14,
                       color: Colors.grey.shade500,
                     ),
                     const SizedBox(width: 4),
                     Text(
                       DateFormat('MMM d · h:mm a').format(event.startTime),
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: 13,
                         color: Colors.grey.shade600,
                       ),
                     ),
                     const SizedBox(width: 12),
                     Icon(
                       Icons.location_on_outlined,
-                      size: 13,
+                      size: 14,
                       color: Colors.grey.shade500,
                     ),
                     const SizedBox(width: 4),
@@ -687,7 +717,7 @@ class _AdminEventCard extends ConsumerWidget {
                       child: Text(
                         event.locationName,
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: 13,
                           color: Colors.grey.shade600,
                         ),
                         overflow: TextOverflow.ellipsis,
@@ -700,18 +730,19 @@ class _AdminEventCard extends ConsumerWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      '${event.rsvpCount}/${event.capacity} RSVPs',
+                      '${event.rsvpCount}/${event.capacity > 0 ? event.capacity : '∞'} RSVPs',
                       style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: Colors.grey.shade600,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey.shade700,
                       ),
                     ),
                     if (event.waitlistCount > 0)
                       Text(
                         '+${event.waitlistCount} waitlist',
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
                           color: Colors.orange.shade700,
                         ),
                       ),
@@ -719,7 +750,7 @@ class _AdminEventCard extends ConsumerWidget {
                 ),
                 const SizedBox(height: 4),
                 ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
+                  borderRadius: BorderRadius.circular(5),
                   child: LinearProgressIndicator(
                     value: pct,
                     backgroundColor: Colors.grey.shade200,
@@ -730,10 +761,11 @@ class _AdminEventCard extends ConsumerWidget {
                           ? Colors.grey.shade400
                           : catColor,
                     ),
-                    minHeight: 5,
+                    minHeight: 8,
                   ),
                 ),
                 const SizedBox(height: 14),
+                // Row 1: scan + attendees (+ summary for past events)
                 Row(
                   children: [
                     _ActionBtn(
@@ -772,8 +804,13 @@ class _AdminEventCard extends ConsumerWidget {
                         onTap: () => _showSummaryDialog(context, ref),
                       ),
                     ],
-                    if (!isPast) ...[
-                      const SizedBox(width: 8),
+                  ],
+                ),
+                // Row 2: edit + cancel for active events only
+                if (!isPast) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
                       _ActionBtn(
                         icon: Icons.edit_rounded,
                         label: 'Edit',
@@ -793,8 +830,8 @@ class _AdminEventCard extends ConsumerWidget {
                         onTap: () => _confirmCancel(context, ref),
                       ),
                     ],
-                  ],
-                ),
+                  ),
+                ],
                 if (_canPermanentDelete(ref)) ...[
                   const SizedBox(height: 10),
                   SizedBox(
@@ -1142,22 +1179,28 @@ class _ActionBtnState extends State<_ActionBtn> {
           scale: _pressed ? 0.96 : 1,
           duration: const Duration(milliseconds: 120),
           child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 8),
+            padding: const EdgeInsets.symmetric(vertical: 12),
             decoration: BoxDecoration(
-              color: widget.color.withOpacity(0.08),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: widget.color.withOpacity(0.2)),
+              color: widget.color,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: widget.color.withOpacity(0.35),
+                  blurRadius: 8,
+                  offset: const Offset(0, 3),
+                ),
+              ],
             ),
             child: Column(
               children: [
-                Icon(widget.icon, color: widget.color, size: 18),
-                const SizedBox(height: 3),
+                Icon(widget.icon, color: Colors.white, size: 22),
+                const SizedBox(height: 4),
                 Text(
                   widget.label,
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                    color: widget.color,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,

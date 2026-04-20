@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../config/app_config.dart';
@@ -39,34 +40,51 @@ class _AttendeeListScreenState extends ConsumerState<AttendeeListScreen>
           .where('eventId', isEqualTo: widget.event.id)
           .get();
 
-      final rsvps = <Map<String, dynamic>>[];
-      for (final doc in snapshot.docs) {
-        final data = doc.data();
-        // Get user info
-        try {
-          final userDoc = await FirebaseFirestore.instance
-              .collection(AppConfig.usersCol)
-              .doc(data['userId'])
-              .get();
-          rsvps.add({
-            'id': doc.id,
-            ...data,
-            'userName': userDoc['name'] ?? 'Unknown',
-            'studentId': userDoc['studentId'] ?? '',
-            'email': userDoc['email'] ?? '',
-          });
-        } catch (e) {
-          rsvps.add({'id': doc.id, ...data, 'userName': 'Unknown'});
+      if (snapshot.docs.isEmpty) {
+        if (mounted) setState(() { _rsvps = []; _isLoading = false; });
+        return;
+      }
+
+      // Collect unique user IDs then batch-fetch in chunks of 10 (whereIn limit).
+      final userIds = snapshot.docs
+          .map((doc) => doc.data()['userId'] as String?)
+          .where((id) => id != null)
+          .cast<String>()
+          .toSet()
+          .toList();
+
+      final userMap = <String, Map<String, dynamic>>{};
+      for (var i = 0; i < userIds.length; i += 10) {
+        final chunk = userIds.sublist(i, (i + 10).clamp(0, userIds.length));
+        final userSnap = await FirebaseFirestore.instance
+            .collection(AppConfig.usersCol)
+            .where(FieldPath.documentId, whereIn: chunk)
+            .get();
+        for (final doc in userSnap.docs) {
+          userMap[doc.id] = doc.data();
         }
       }
 
-      if (mounted)
+      final rsvps = snapshot.docs.map((doc) {
+        final data = doc.data();
+        final uid = data['userId'] as String? ?? '';
+        final user = userMap[uid] ?? {};
+        return {
+          'id': doc.id,
+          ...data,
+          'userName': user['name'] ?? 'Unknown',
+          'studentId': user['studentId'] ?? '',
+          'email': user['email'] ?? '',
+        };
+      }).toList();
+
+      if (mounted) {
         setState(() {
           _rsvps = rsvps;
           _isLoading = false;
         });
+      }
     } catch (e) {
-      print('loadAttendees error: $e');
       if (mounted) setState(() => _isLoading = false);
     }
   }
@@ -86,6 +104,28 @@ class _AttendeeListScreenState extends ConsumerState<AttendeeListScreen>
   List<Map<String, dynamic>> get _waitlist =>
       _rsvps.where((r) => r['status'] == AppConfig.rsvpWaitlist).toList();
 
+  void _copyAsCsv() {
+    if (_rsvps.isEmpty) return;
+    final lines = ['Name,Student ID,Email,Status,Checked In'];
+    for (final r in _rsvps) {
+      final name = (r['userName'] ?? '').toString().replaceAll(',', ' ');
+      final id = (r['studentId'] ?? '').toString();
+      final email = (r['email'] ?? '').toString();
+      final status = (r['status'] ?? '').toString();
+      final checkedIn = r['checkedIn'] == true ? 'Yes' : 'No';
+      lines.add('$name,$id,$email,$status,$checkedIn');
+    }
+    Clipboard.setData(ClipboardData(text: lines.join('\n')));
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${_rsvps.length} attendees copied as CSV'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -100,6 +140,14 @@ class _AttendeeListScreenState extends ConsumerState<AttendeeListScreen>
             ),
           ],
         ),
+        actions: [
+          if (!_isLoading && _rsvps.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.copy_all_rounded),
+              tooltip: 'Copy as CSV',
+              onPressed: _copyAsCsv,
+            ),
+        ],
         bottom: TabBar(
           controller: _tabController,
           tabs: [

@@ -85,7 +85,7 @@ class _TeacherApprovalScreenState extends State<TeacherApprovalScreen>
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-              'Account data removed from the app. Delete the user in Firebase Auth console if the email must be freed.',
+              'Account data removed from app. To free email for reuse, delete this user in Firebase Authentication console.',
             ),
             behavior: SnackBarBehavior.floating,
           ),
