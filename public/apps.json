@@ -35,11 +35,11 @@
       ],
       "versions": [
         {
-          "version": "1.6.0",
-          "date": "2026-04-15",
-          "localizedDescription": "• Admin UI polish\n• Spark-safe account deletion flow\n• CampusGroups import removed",
-          "downloadURL": "https://github.com/kevvnr/nyit-events-app/releases/download/v1.6.0-build8/CampusApp.ipa",
-          "size": 20034890
+          "version": "1.7.0",
+          "date": "2026-04-19",
+          "localizedDescription": "• AR Navigate — camera overlay guides you to the venue\\n• Announcement dismissal persists across sessions\\n• Dashboard: Live/Upcoming/Past tabs, full-screen stats\\n• Feed layout polish and safe-area fixes",
+          "downloadURL": "https://github.com/kevvnr/nyit-events-app/releases/download/v1.7.0-build9/CampusApp.ipa",
+          "size": 20294078
         },
         {
           "version": "1.4.0",
