@@ -1,0 +1,9 @@
+// Copy this file to mapbox_config.dart and fill in your token.
+// mapbox_config.dart is gitignored — never commit the real token.
+class MapboxConfig {
+  /// Public (read-only) Mapbox token — get one at https://account.mapbox.com
+  static const publicToken = 'pk.YOUR_TOKEN_HERE';
+
+  static String get streetsUrl =>
+      'https://api.mapbox.com/styles/v1/mapbox/streets-v12/tiles/256/{z}/{x}/{y}?access_token=$publicToken';
+}

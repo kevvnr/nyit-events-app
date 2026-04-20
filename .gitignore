@@ -43,3 +43,7 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Local config files with API keys (never commit real tokens)
+lib/config/mapbox_config.dart
+lib/config/algolia_config.dart
