@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
+import '../../config/mapbox_config.dart';
 import '../../providers/event_provider.dart';
 import '../../models/event_model.dart';
 import '../../services/walking_route_service.dart';
@@ -300,13 +301,24 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Error: $e')),
         data: (allEvents) {
+          final today = DateTime(now.year, now.month, now.day);
+          final tomorrow = today.add(const Duration(days: 1));
+          final weekEnd = today.add(const Duration(days: 7));
+
+          // Today's events (for map markers and filter chips)
           final events = allEvents.where((e) {
             if (e.isCancelled) return false;
-            if (!_showPastEvents && !e.endTime.isAfter(now)) {
-              return false;
-            }
-            return true;
+            if (_showPastEvents) return true;
+            // Show events that start today OR are currently happening today
+            return e.startTime.isBefore(tomorrow) && e.endTime.isAfter(today);
           }).toList();
+
+          // This week's events for the bottom preview panel
+          final weekEvents = allEvents.where((e) {
+            if (e.isCancelled) return false;
+            return e.endTime.isAfter(now) && e.startTime.isBefore(weekEnd);
+          }).toList()
+            ..sort((a, b) => a.startTime.compareTo(b.startTime));
 
           final filteredEvents = _filter == 'All'
               ? events
@@ -457,7 +469,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                         Row(
                           children: [
                             _FilterChip(
-                              label: 'All Events',
+                              label: 'Today',
                               count: events.length,
                               selected: _filter == 'All',
                               color: const Color(0xFF1565C0),
@@ -466,7 +478,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                             ),
                             const SizedBox(width: 8),
                             _FilterChip(
-                              label: 'Happening Now',
+                              label: 'Live Now',
                               count: events
                                   .where(
                                       (e) => e.isHappeningNow)
@@ -515,8 +527,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                   ),
                   children: [
                     TileLayer(
-                      urlTemplate:
-                          'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                      urlTemplate: MapboxConfig.streetsUrl,
                       userAgentPackageName:
                           'edu.nyit.campusevents',
                     ),
@@ -800,7 +811,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                           building: _selectedBuilding!)
                     else
                       _EventListPreview(
-                          events: filteredEvents),
+                          events: weekEvents),
                   ],
                 ),
               ),
@@ -1180,7 +1191,7 @@ class _EventListPreview extends StatelessWidget {
           padding:
               const EdgeInsets.fromLTRB(16, 12, 16, 8),
           child: Text(
-            '${events.length} event${events.length != 1 ? 's' : ''} on campus',
+            'This week · ${events.length} event${events.length != 1 ? 's' : ''}',
             style: const TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,

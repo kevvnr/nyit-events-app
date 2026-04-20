@@ -3,6 +3,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import '../models/event_model.dart';
 import '../config/app_config.dart';
 import '../config/campus_locations.dart';
+import 'algolia_service.dart';
 import 'analytics_service.dart';
 import 'live_activity_service.dart';
 import 'notification_service.dart';
@@ -200,6 +201,7 @@ class EventService {
     );
 
     await docRef.set(event.toFirestore());
+    await AlgoliaService.instance.indexEvent(event);
     return event;
   }
 
@@ -274,12 +276,18 @@ class EventService {
       importKey: importKey,
     );
     await docRef.set(event.toFirestore());
+    await AlgoliaService.instance.indexEvent(event);
     return event;
   }
 
   // Update event
   Future<void> updateEvent(String eventId, Map<String, dynamic> data) async {
     await _db.collection(AppConfig.eventsCol).doc(eventId).update(data);
+    // Re-fetch and sync the full updated record to Algolia.
+    final snap = await _db.collection(AppConfig.eventsCol).doc(eventId).get();
+    if (snap.exists) {
+      await AlgoliaService.instance.indexEvent(EventModel.fromFirestore(snap));
+    }
   }
 
   // Cancel event and notify all RSVPs
@@ -308,6 +316,7 @@ class EventService {
     }
 
     await batch.commit();
+    await AlgoliaService.instance.deleteEvent(eventId);
   }
 
   /// Hard-delete an event and all dependent Firestore data (RSVPs, in-app
@@ -360,6 +369,7 @@ class EventService {
     }
 
     await eventRef.delete();
+    await AlgoliaService.instance.deleteEvent(eventId);
   }
 
   Future<void> _deleteDocumentsFromQuery(Query<Map<String, dynamic>> query) async {
@@ -866,6 +876,7 @@ class EventService {
     await _db.collection(AppConfig.eventsCol).doc(eventId).update({
       'status': AppConfig.eventArchived,
     });
+    await AlgoliaService.instance.deleteEvent(eventId);
   }
 
   // Auto-archive all events that have ended

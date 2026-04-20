@@ -3,7 +3,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import '../../config/app_config.dart';
+import '../../data/campusgroups_events.dart';
+import '../../models/event_model.dart';
 import '../../services/admin_user_service.dart';
+import '../../services/algolia_service.dart';
 import '../../services/event_service.dart';
 
 class SuperAdminDashboard extends StatefulWidget {
@@ -21,6 +24,8 @@ class _SuperAdminDashboardState
   bool _isLoading = true;
   bool _isRecalculating = false;
   bool _isArchiving = false;
+  bool _isSyncingAlgolia = false;
+  bool _isImporting = false;
 
   int _totalEvents = 0;
   int _totalStudents = 0;
@@ -32,7 +37,7 @@ class _SuperAdminDashboardState
   List<Map<String, dynamic>> _students = [];
   List<Map<String, dynamic>> _teachers = [];
 
-  bool _loadingPast = true;
+  bool _loadingPast = false;
   List<Map<String, dynamic>> _archivedEvents = [];
 
   @override
@@ -58,9 +63,6 @@ Future<void> _loadStats() async {
   setState(() => _isLoading = true);
   try {
     final db = FirebaseFirestore.instance;
-
-    // Recalculate all counts first for accuracy
-    await EventService().recalculateAllEventCounts();
 
     final results = await Future.wait([
       db.collection(AppConfig.eventsCol)
@@ -114,9 +116,18 @@ Future<void> _loadStats() async {
       }
     }
 
+    final nowTs = DateTime.now();
+    final activeEventCount = results[0].docs.where((doc) {
+      final data = doc.data() as Map<String, dynamic>;
+      final endTs = data['endTime'];
+      if (endTs == null) return false;
+      final endTime = (endTs as Timestamp).toDate();
+      return endTime.isAfter(nowTs);
+    }).length;
+
     if (mounted) {
       setState(() {
-        _totalEvents = results[0].docs.length;
+        _totalEvents = activeEventCount;
         _totalStudents = studentDocs.length;
         _totalTeachers = approvedTeacherDocs.length;
         _totalRsvps = liveRsvps;
@@ -251,6 +262,138 @@ Future<void> _loadStats() async {
     }
   }
 
+  Future<void> _importCampusGroupsEvents() async {
+    final events = buildCampusGroupsEvents();
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Import / update CampusGroups events?'),
+        content: Text(
+          'This will create or update ${events.length} events from campusgroups.nyit.edu. '
+          'Existing imports will have their location, capacity, and description refreshed.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Import'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+
+    setState(() => _isImporting = true);
+    try {
+      final db = FirebaseFirestore.instance;
+      int created = 0;
+      int updated = 0;
+
+      for (final data in events) {
+        final importKey = data['importKey'] as String;
+        final existing = await db
+            .collection(AppConfig.eventsCol)
+            .where('importKey', isEqualTo: importKey)
+            .limit(1)
+            .get();
+        if (existing.docs.isNotEmpty) {
+          final docRef = existing.docs.first.reference;
+          await docRef.update({
+            'description': data['description'],
+            'capacity': data['capacity'],
+            'locationName': data['locationName'],
+            'locationKey': data['locationKey'],
+            'locationLat': data['locationLat'],
+            'locationLng': data['locationLng'],
+          });
+          final snap = await docRef.get();
+          await AlgoliaService.instance.indexEvent(EventModel.fromFirestore(snap));
+          updated++;
+          continue;
+        }
+        final ref = db.collection(AppConfig.eventsCol).doc();
+        await ref.set(data);
+        // Sync to Algolia
+        final snap = await ref.get();
+        await AlgoliaService.instance.indexEvent(EventModel.fromFirestore(snap));
+        created++;
+      }
+
+      await _loadStats();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+                '$created event${created != 1 ? 's' : ''} created, $updated updated.'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Import error: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isImporting = false);
+    }
+  }
+
+  Future<void> _syncAllToAlgolia() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Sync all events to Algolia?'),
+        content: const Text(
+            'This pushes every published event to the Algolia search index. '
+            'Run this once after initial setup, or any time the index gets out of sync.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Sync'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+
+    setState(() => _isSyncingAlgolia = true);
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection(AppConfig.eventsCol)
+          .where('status', isEqualTo: AppConfig.eventPublished)
+          .get();
+      final events =
+          snap.docs.map((d) => EventModel.fromFirestore(d)).toList();
+      await AlgoliaService.instance.indexAllEvents(events);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+                '${events.length} event${events.length != 1 ? 's' : ''} synced to Algolia!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Algolia sync error: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSyncingAlgolia = false);
+    }
+  }
+
   Future<void> _confirmDeleteUserSheet(
     BuildContext sheetContext,
     Map<String, dynamic> user,
@@ -264,7 +407,7 @@ Future<void> _loadStats() async {
         title: const Text('Remove account completely?'),
         content: Text(
           'Delete all app data for $name (RSVPs, notifications, hosted events and RSVPs, study groups, profile). '
-          'To free the email for signup, also delete the user in Firebase Authentication (Console or Admin SDK).',
+          'On Spark plan, delete their Firebase Authentication user in Console to free the email.',
         ),
         actions: [
           TextButton(
@@ -292,7 +435,7 @@ Future<void> _loadStats() async {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('$name’s app data was removed.'),
+            content: Text('$name’s app data was removed. Delete Auth user in Console to free email.'),
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -532,7 +675,7 @@ Future<void> _loadStats() async {
           fontWeight: FontWeight.w700,
         ),
         actions: [
-          if (_isRecalculating || _isArchiving)
+          if (_isRecalculating || _isArchiving || _isSyncingAlgolia || _isImporting)
             const Padding(
               padding: EdgeInsets.all(16),
               child: SizedBox(
@@ -552,6 +695,16 @@ Future<void> _loadStats() async {
               icon: const Icon(Icons.sync_rounded),
               tooltip: 'Recalculate all counts',
               onPressed: _recalculateCounts,
+            ),
+            IconButton(
+              icon: const Icon(Icons.cloud_upload_rounded),
+              tooltip: 'Sync all events to Algolia',
+              onPressed: _syncAllToAlgolia,
+            ),
+            IconButton(
+              icon: const Icon(Icons.download_rounded),
+              tooltip: 'Import CampusGroups events',
+              onPressed: _importCampusGroupsEvents,
             ),
           ],
           IconButton(
@@ -642,7 +795,7 @@ Future<void> _loadStats() async {
                           childAspectRatio: 1.6,
                           children: [
                             _StatCard(
-                              label: 'Active events',
+                              label: 'Active Events',
                               value: '$_totalEvents',
                               icon: Icons.event_rounded,
                               color: AppConfig.primaryColor,
@@ -1162,33 +1315,46 @@ class _PastEventDetailSheetState
       final snap = await FirebaseFirestore.instance
           .collection(AppConfig.rsvpsCol)
           .where('eventId', isEqualTo: widget.eventId)
-          .where('status',
-              isEqualTo: AppConfig.rsvpConfirmed)
+          .where('status', isEqualTo: AppConfig.rsvpConfirmed)
           .get();
 
-      final attendees = <Map<String, dynamic>>[];
-      for (final doc in snap.docs) {
-        final data = doc.data();
-        try {
-          final userDoc = await FirebaseFirestore.instance
-              .collection(AppConfig.usersCol)
-              .doc(data['userId'])
-              .get();
-          attendees.add({
-            'id': doc.id,
-            ...data,
-            'userName': userDoc['name'] ?? 'Unknown',
-            'studentId': userDoc['studentId'] ?? 'N/A',
-            'email': userDoc['email'] ?? '',
-          });
-        } catch (e) {
-          attendees.add({
-            'id': doc.id,
-            ...data,
-            'userName': 'Unknown',
-          });
+      if (snap.docs.isEmpty) {
+        if (mounted) setState(() { _attendees = []; _isLoading = false; });
+        return;
+      }
+
+      // Collect unique user IDs and batch-fetch (whereIn max = 10).
+      final userIds = snap.docs
+          .map((d) => d.data()['userId'] as String?)
+          .where((id) => id != null)
+          .cast<String>()
+          .toSet()
+          .toList();
+
+      final userMap = <String, Map<String, dynamic>>{};
+      for (var i = 0; i < userIds.length; i += 10) {
+        final chunk = userIds.sublist(i, (i + 10).clamp(0, userIds.length));
+        final userSnap = await FirebaseFirestore.instance
+            .collection(AppConfig.usersCol)
+            .where(FieldPath.documentId, whereIn: chunk)
+            .get();
+        for (final doc in userSnap.docs) {
+          userMap[doc.id] = doc.data();
         }
       }
+
+      final attendees = snap.docs.map((doc) {
+        final data = doc.data();
+        final uid = data['userId'] as String? ?? '';
+        final user = userMap[uid] ?? {};
+        return {
+          'id': doc.id,
+          ...data,
+          'userName': user['name'] ?? 'Unknown',
+          'studentId': user['studentId'] ?? 'N/A',
+          'email': user['email'] ?? '',
+        };
+      }).toList();
 
       if (mounted) {
         setState(() {

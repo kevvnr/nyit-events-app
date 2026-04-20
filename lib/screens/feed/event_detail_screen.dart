@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -10,6 +11,7 @@ import '../admin/attendee_list_screen.dart';
 import '../admin/edit_event_screen.dart';
 import '../admin/qr_scanner_screen.dart';
 import '../../utils/map_directions.dart';
+import '../map/ar_wayfinding_screen.dart';
 import '../../models/event_model.dart';
 import '../../providers/event_provider.dart';
 import '../../providers/auth_provider.dart';
@@ -31,7 +33,8 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
   bool _isLoading = false;
   Map<String, dynamic>? _userRsvp;
   bool _rsvpLoaded = false;
-  int? _waitlistPosition; // null = not on waitlist or position unknown
+  int? _waitlistPosition;
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _rsvpSub;
 
   // Category image map
   static const Map<String, String> _categoryImages = {
@@ -56,6 +59,12 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
   };
 
   @override
+  void dispose() {
+    _rsvpSub?.cancel();
+    super.dispose();
+  }
+
+  @override
   void initState() {
     super.initState();
     _loadUserRsvp();
@@ -77,7 +86,7 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
     final user = ref.read(userModelProvider).asData?.value;
     if (user == null) return;
 
-    FirebaseFirestore.instance
+    _rsvpSub = FirebaseFirestore.instance
         .collection(AppConfig.rsvpsCol)
         .where('userId', isEqualTo: user.uid)
         .where('eventId', isEqualTo: widget.eventId)
@@ -704,6 +713,57 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
                                         Icons.open_in_new_rounded,
                                         size: 14,
                                         color: catColor.withOpacity(0.7),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              // AR Wayfinding button
+                              GestureDetector(
+                                onTap: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) =>
+                                        ARWayfindingScreen(event: event),
+                                  ),
+                                ),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                    vertical: 10,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.deepPurple.withOpacity(0.08),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color:
+                                          Colors.deepPurple.withOpacity(0.22),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.view_in_ar_rounded,
+                                        size: 18,
+                                        color: Colors.deepPurple.shade300,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        'AR Navigate',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.deepPurple.shade300,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Icon(
+                                        Icons.auto_awesome,
+                                        size: 13,
+                                        color: Colors.deepPurple.shade200
+                                            .withOpacity(0.7),
                                       ),
                                     ],
                                   ),

@@ -293,12 +293,12 @@ class _CreateEventScreenState
         decoration: BoxDecoration(
           color: selected
               ? AppConfig.primaryColor
-              : Colors.white,
+              : const Color(0xFFEEF2FF),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: selected
                 ? AppConfig.primaryColor
-                : Colors.grey.shade300,
+                : const Color(0xFFBFD1F5),
           ),
           boxShadow: selected
               ? [
@@ -333,7 +333,7 @@ class _CreateEventScreenState
                     : FontWeight.w500,
                 color: selected
                     ? Colors.white
-                    : (disabled ? Colors.grey.shade400 : Colors.grey.shade700),
+                    : (disabled ? Colors.grey.shade400 : const Color(0xFF1A3A6B)),
                 decoration: disabled ? TextDecoration.lineThrough : null,
               ),
             ),

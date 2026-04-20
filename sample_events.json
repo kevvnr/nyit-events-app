@@ -1,0 +1,17 @@
+[
+  {
+    "objectID": "sample_1",
+    "title": "Spring Networking Night",
+    "description": "Meet faculty and industry professionals at NYIT's annual networking event.",
+    "category": "Career / Networking",
+    "locationName": "Schure Hall",
+    "locationKey": "schure_hall",
+    "hostName": "NYIT Career Services",
+    "vibeTags": ["Networking", "Professional"],
+    "startTime": 1744934400,
+    "endTime": 1744941600,
+    "rsvpCount": 24,
+    "capacity": 80,
+    "status": "published"
+  }
+]

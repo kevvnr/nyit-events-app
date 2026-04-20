@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../config/app_config.dart';
 import '../../models/event_model.dart';
 import '../../providers/event_provider.dart';
@@ -10,6 +12,7 @@ import '../../services/announcement_service.dart';
 import '../../services/event_service.dart';
 import '../../services/analytics_service.dart';
 import '../../services/experiment_service.dart';
+import '../../services/algolia_service.dart';
 import '../../services/live_activity_service.dart';
 import '../../services/siri_shortcuts_service.dart';
 import 'event_detail_screen.dart';
@@ -27,6 +30,13 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
   String _searchQuery = '';
   bool _showPastEvents = false;
   bool _showSearch = false;
+  String? _dismissedAnnouncementId;
+  static const _prefKeyDismissed = 'dismissed_announcement_id';
+
+  // Algolia search state
+  List<String>? _algoliaIds;   // null = not searching; list = Algolia results
+  bool _algoliaSearching = false;
+  Timer? _debounce;
   /// 0 = main event list only; 1 = smart picks / tonight / conflict blocks + list.
   int _feedSegment = 0;
   final Map<String, int> _categoryAffinity = {};
@@ -35,6 +45,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
   @override
   void initState() {
     super.initState();
+    _loadDismissedAnnouncement();
     _loadSmartSignals();
     AnalyticsService.instance.logScreenView('feed_screen');
     final headerVariant = ExperimentService.instance.feedHeaderVariant;
@@ -43,6 +54,20 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
       variant: headerVariant,
       placement: 'feed_header',
     );
+  }
+
+  Future<void> _loadDismissedAnnouncement() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString(_prefKeyDismissed);
+    if (saved != null && mounted) {
+      setState(() => _dismissedAnnouncementId = saved);
+    }
+  }
+
+  Future<void> _dismissAnnouncement(String id) async {
+    setState(() => _dismissedAnnouncementId = id);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_prefKeyDismissed, id);
   }
 
   Future<void> _loadSmartSignals() async {
@@ -137,23 +162,51 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _searchController.dispose();
     super.dispose();
   }
 
+  void _onSearchChanged(String val) {
+    setState(() => _searchQuery = val);
+    _debounce?.cancel();
+    if (val.trim().isEmpty) {
+      setState(() { _algoliaIds = null; _algoliaSearching = false; });
+      return;
+    }
+    setState(() => _algoliaSearching = true);
+    _debounce = Timer(const Duration(milliseconds: 350), () async {
+      final ids = await AlgoliaService.instance.searchEventIds(
+        val.trim(),
+        category: _selectedCategory == 'All' ? null : _selectedCategory,
+      );
+      if (mounted) setState(() { _algoliaIds = ids; _algoliaSearching = false; });
+    });
+  }
+
   List<EventModel> _filterEvents(List<EventModel> events) {
     final now = DateTime.now();
+
+    // When Algolia search is active, filter by Algolia IDs and preserve
+    // relevance order returned by Algolia.
+    if (_algoliaIds != null) {
+      final order = {
+        for (var i = 0; i < _algoliaIds!.length; i++) _algoliaIds![i]: i,
+      };
+      final matched = events
+          .where((e) => order.containsKey(e.id) && !e.isCancelled)
+          .toList()
+        ..sort((a, b) => (order[a.id] ?? 999).compareTo(order[b.id] ?? 999));
+      return matched;
+    }
+
+    // Normal local filter when no search query.
     var filtered = events.where((event) {
       final matchesCategory =
           _selectedCategory == 'All' || event.category == _selectedCategory;
-      final matchesSearch =
-          _searchQuery.isEmpty ||
-          event.title.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          event.locationName.toLowerCase().contains(_searchQuery.toLowerCase());
       final notEnded = event.endTime.isAfter(now);
       final isPast = event.endTime.isBefore(now);
       return matchesCategory &&
-          matchesSearch &&
           !event.isCancelled &&
           (notEnded || (_showPastEvents && isPast));
     }).toList();
@@ -203,12 +256,18 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
                   return const SizedBox.shrink();
                 }
                 final latest = announcements.first;
+                final announcementId =
+                    latest['id']?.toString() ?? latest['message']?.toString() ?? '';
+                // Dismissed by user — hide until a new announcement comes in
+                if (_dismissedAnnouncementId == announcementId) {
+                  return const SizedBox.shrink();
+                }
                 final isUrgent = latest['priority'] == 'urgent';
                 return Container(
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 10,
+                    horizontal: 12,
+                    vertical: 8,
                   ),
                   color: isUrgent
                       ? Colors.red.shade600
@@ -220,7 +279,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
                             ? Icons.warning_rounded
                             : Icons.campaign_rounded,
                         color: Colors.white,
-                        size: 16,
+                        size: 15,
                       ),
                       const SizedBox(width: 8),
                       Expanded(
@@ -233,6 +292,17 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
                           ),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      GestureDetector(
+                        onTap: () => _dismissAnnouncement(announcementId),
+                        child: const Padding(
+                          padding: EdgeInsets.only(left: 8),
+                          child: Icon(
+                            Icons.close_rounded,
+                            color: Colors.white70,
+                            size: 16,
+                          ),
                         ),
                       ),
                     ],
@@ -283,17 +353,20 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
                 child: TextField(
                   controller: _searchController,
                   autofocus: true,
-                  onChanged: (val) => setState(() => _searchQuery = val),
+                  onChanged: _onSearchChanged,
                   decoration: InputDecoration(
                     hintText: 'Search events...',
                     prefixIcon: const Icon(Icons.search_rounded, size: 20),
                     suffixIcon: IconButton(
                       icon: const Icon(Icons.close_rounded, size: 20),
                       onPressed: () {
+                        _debounce?.cancel();
                         _searchController.clear();
                         setState(() {
                           _searchQuery = '';
                           _showSearch = false;
+                          _algoliaIds = null;
+                          _algoliaSearching = false;
                         });
                       },
                     ),
@@ -339,8 +412,12 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
                         return Padding(
                           padding: const EdgeInsets.only(right: 8, top: 10),
                           child: GestureDetector(
-                            onTap: () =>
-                                setState(() => _selectedCategory = cat),
+                            onTap: () {
+                              setState(() => _selectedCategory = cat);
+                              if (_searchQuery.isNotEmpty) {
+                                _onSearchChanged(_searchQuery);
+                              }
+                            },
                             child: AnimatedContainer(
                               duration: const Duration(milliseconds: 200),
                               padding: const EdgeInsets.symmetric(
@@ -631,7 +708,10 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
                         key: ValueKey(
                           '${_selectedCategory}_${_searchQuery}_${_showPastEvents}_${_feedSegment}_${filtered.length}',
                         ),
-                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+                        padding: EdgeInsets.fromLTRB(
+                          16, 8, 16,
+                          MediaQuery.paddingOf(context).bottom + 88,
+                        ),
                         itemCount:
                             filtered.length +
                             (showTonight ? 1 : 0) +
@@ -682,7 +762,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
                               (showAiCopilot ? 1 : 0) -
                               (showConflictAssistant ? 1 : 0);
                           return Padding(
-                            padding: const EdgeInsets.only(bottom: 16),
+                            padding: const EdgeInsets.only(bottom: 12),
                             child: _EventCard(
                               event: filtered[effectiveIndex],
                               hasConflict: _conflictingEventIds.contains(
@@ -1445,7 +1525,7 @@ class _EventCardState extends ConsumerState<_EventCard> {
                 top: Radius.circular(16),
               ),
               child: SizedBox(
-                height: 160,
+                height: 115,
                 width: double.infinity,
                 child: Stack(
                   fit: StackFit.expand,
@@ -1598,18 +1678,18 @@ class _EventCardState extends ConsumerState<_EventCard> {
                       left: 0,
                       right: 0,
                       child: Padding(
-                        padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+                        padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
                         child: Text(
                           event.title,
                           style: const TextStyle(
                             color: Colors.white,
-                            fontSize: 17,
+                            fontSize: 15,
                             fontWeight: FontWeight.w800,
                             shadows: [
                               Shadow(color: Colors.black45, blurRadius: 4),
                             ],
                           ),
-                          maxLines: 2,
+                          maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
@@ -1621,7 +1701,7 @@ class _EventCardState extends ConsumerState<_EventCard> {
 
             // Card body
             Padding(
-              padding: const EdgeInsets.all(14),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -1716,13 +1796,21 @@ class _EventCardState extends ConsumerState<_EventCard> {
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(color: Colors.orange.shade200),
                           ),
-                          child: Text(
-                            'Conflicts with your calendar',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.orange.shade700,
-                            ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.warning_amber_rounded,
+                                  size: 10, color: Colors.orange.shade700),
+                              const SizedBox(width: 3),
+                              Text(
+                                'Conflict',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.orange.shade700,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],

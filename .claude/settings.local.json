@@ -13,7 +13,27 @@
       "Bash(npx firebase:*)",
       "Bash(/opt/homebrew/bin/firebase deploy:*)",
       "Bash(/Users/kevin/Desktop/Spring 2026/.sdks/flutter/bin/flutter analyze lib/screens/feed/feed_screen.dart)",
-      "Bash(/Users/kevin/Desktop/Spring 2026/.sdks/flutter/bin/flutter analyze lib/)"
+      "Bash(/Users/kevin/Desktop/Spring 2026/.sdks/flutter/bin/flutter analyze lib/)",
+      "WebFetch(domain:kevvnr.github.io)",
+      "Bash(curl -I -L https://github.com/kevvnr/nyit-events-app/releases/download/v1.6.0-build8/CampusApp.ipa)",
+      "mcp__Claude_in_Chrome__tabs_context_mcp",
+      "mcp__Claude_in_Chrome__switch_browser",
+      "WebFetch(domain:campusgroups.nyit.edu)",
+      "mcp__Claude_in_Chrome__navigate",
+      "mcp__Claude_in_Chrome__get_page_text",
+      "mcp__Claude_in_Chrome__javascript_tool",
+      "mcp__Claude_in_Chrome__read_network_requests",
+      "Bash(flutter analyze:*)",
+      "Bash(curl -s \"https://campusgroups.nyit.edu/mobile_ws/v17/mobile_events_list?range=0-300&status=1&order=asc\")",
+      "Bash(python3 -c \" import json, sys data = json.load\\(sys.stdin\\) events = data if isinstance\\(data, list\\) else data.get\\('events', data.get\\('data', data.get\\('result', []\\)\\)\\) print\\(f'Total events: {len\\(events\\)}'\\) for i, e in enumerate\\(events\\): title = e.get\\('name'\\) or e.get\\('title'\\) or e.get\\('event_name','?'\\) start = e.get\\('start_time'\\) or e.get\\('startTime'\\) or e.get\\('start','?'\\) end = e.get\\('end_time'\\) or e.get\\('endTime'\\) or e.get\\('end','?'\\) print\\(f'{i+1}. {title} | {start} | {end}'\\) \")",
+      "Bash(python3 -c \"import json,sys; d=json.loads\\(sys.stdin.read\\(\\)\\); print\\('Total items:', len\\(d\\)\\); print\\('counter from first:', d[0].get\\('counter'\\)\\)\")",
+      "Bash(curl -s \"https://campusgroups.nyit.edu/mobile_ws/v17/mobile_events_list?start=0&limit=200&status=1&order=asc\")",
+      "Bash(python3 -c \"import json,sys; d=json.loads\\(sys.stdin.read\\(\\)\\); print\\('With start/limit - Total items:', len\\(d\\)\\)\")",
+      "Bash(curl -s \"https://campusgroups.nyit.edu/mobile_ws/v17/mobile_events_list?start=0&limit=500&status=1&order=asc\")",
+      "Bash(python3 -c ':*)",
+      "Bash(make ipa *)",
+      "Bash(pod install *)",
+      "Bash(flutter build *)"
     ]
   }
 }

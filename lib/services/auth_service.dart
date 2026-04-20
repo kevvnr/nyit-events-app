@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import '../models/user_model.dart';
 import '../config/app_config.dart';
 import 'analytics_service.dart';
@@ -168,6 +169,12 @@ class AuthService {
 
   Future<void> _saveFcmToken(String uid) async {
     try {
+      // On iOS, APNs token must be available before FCM token can be fetched.
+      // If it isn't ready yet (e.g. simulator, no paid dev account), skip silently.
+      if (defaultTargetPlatform == TargetPlatform.iOS) {
+        final apns = await FirebaseMessaging.instance.getAPNSToken();
+        if (apns == null) return;
+      }
       final token = await FirebaseMessaging.instance.getToken();
       if (token != null) {
         final now = Timestamp.now();
@@ -177,8 +184,8 @@ class AuthService {
           'segmentRole': _auth.currentUser != null ? 'authenticated' : 'guest',
         });
       }
-    } catch (e) {
-      print('saveFcmToken error: $e');
+    } catch (_) {
+      // FCM token unavailable — non-fatal, push notifications simply won't work.
     }
   }
 

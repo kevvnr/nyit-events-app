@@ -409,12 +409,23 @@ class _EditEventScreenState extends ConsumerState<EditEventScreen> {
                         final tooSmall = cap > 0 && maxCap < cap;
                         final unavailable = _unavailableLocationKeys.contains(b.id);
                         final disabled = tooSmall || unavailable;
+                        final selected = _locationController.text == b.name;
                         return ActionChip(
+                          backgroundColor: selected
+                              ? AppConfig.primaryColor
+                              : const Color(0xFFEEF2FF),
+                          side: BorderSide(
+                            color: selected
+                                ? AppConfig.primaryColor
+                                : const Color(0xFFBFD1F5),
+                          ),
                           label: Text(
                             '${b.name}${tooSmall ? ' (max $maxCap)' : unavailable ? ' (busy)' : ''}',
                             style: TextStyle(
                               fontSize: 11,
-                              color: disabled ? Colors.grey : null,
+                              color: selected
+                                  ? Colors.white
+                                  : (disabled ? Colors.grey : const Color(0xFF1A3A6B)),
                               decoration: disabled ? TextDecoration.lineThrough : null,
                             ),
                           ),
@@ -461,12 +472,23 @@ class _EditEventScreenState extends ConsumerState<EditEventScreen> {
                           final tooSmall = cap > 0 && maxCap < cap;
                           final unavailable = _unavailableLocationKeys.contains(p.id);
                           final disabled = tooSmall || unavailable;
+                          final selected = _locationController.text == p.name;
                           return ActionChip(
+                            backgroundColor: selected
+                                ? AppConfig.primaryColor
+                                : const Color(0xFFEEF2FF),
+                            side: BorderSide(
+                              color: selected
+                                  ? AppConfig.primaryColor
+                                  : const Color(0xFFBFD1F5),
+                            ),
                             label: Text(
                               '${p.name}${tooSmall ? ' (max $maxCap)' : unavailable ? ' (busy)' : ''}',
                               style: TextStyle(
                                 fontSize: 11,
-                                color: disabled ? Colors.grey : null,
+                                color: selected
+                                    ? Colors.white
+                                    : (disabled ? Colors.grey : const Color(0xFF1A3A6B)),
                                 decoration: disabled ? TextDecoration.lineThrough : null,
                               ),
                             ),
