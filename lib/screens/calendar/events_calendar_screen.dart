@@ -34,7 +34,8 @@ class EventsCalendarScreen extends ConsumerStatefulWidget {
   ConsumerState<EventsCalendarScreen> createState() => _EventsCalendarScreenState();
 }
 
-class _EventsCalendarScreenState extends ConsumerState<EventsCalendarScreen> {
+class _EventsCalendarScreenState extends ConsumerState<EventsCalendarScreen>
+    with WidgetsBindingObserver {
   CalendarFormat _calendarFormat = CalendarFormat.month;
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
@@ -44,8 +45,22 @@ class _EventsCalendarScreenState extends ConsumerState<EventsCalendarScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _selectedDay = _dayOnly(DateTime.now());
     _load();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _load();
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -321,7 +336,7 @@ class _EventsCalendarScreenState extends ConsumerState<EventsCalendarScreen> {
                       ),
                     )
                   else
-                    ...selected.map((e) => _EventListTile(event: e)),
+                    ...selected.map((e) => _EventListTile(event: e, onReturn: _load)),
                 ],
               ),
             ),
@@ -331,8 +346,9 @@ class _EventsCalendarScreenState extends ConsumerState<EventsCalendarScreen> {
 
 class _EventListTile extends StatelessWidget {
   final _CalEvent event;
+  final VoidCallback? onReturn;
 
-  const _EventListTile({required this.event});
+  const _EventListTile({required this.event, this.onReturn});
 
   @override
   Widget build(BuildContext context) {
@@ -343,13 +359,14 @@ class _EventListTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         child: InkWell(
           borderRadius: BorderRadius.circular(14),
-          onTap: () {
-            Navigator.push(
+          onTap: () async {
+            await Navigator.push(
               context,
               MaterialPageRoute(
                 builder: (_) => EventDetailScreen(eventId: event.eventId),
               ),
             );
+            onReturn?.call();
           },
           child: Padding(
             padding: const EdgeInsets.all(14),

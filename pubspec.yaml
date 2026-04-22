@@ -8,7 +8,7 @@ publish_to: 'none'
 # Signed:   make ipa → build/ios/ipa/CampusApp.ipa
 # Unsigned: make ipa-unsigned → build/ios/ipa/CampusApp_unsigned.ipa
 # SideStore: make sidestore-help  (full upload steps)
-version: 1.7.0+9
+version: 1.8.1+10
 
 environment:
   sdk: ^3.10.7

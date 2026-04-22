@@ -126,16 +126,16 @@ class _ARWayfindingScreenState extends State<ARWayfindingScreen>
     _magSub = magnetometerEventStream(samplingPeriod: SensorInterval.uiInterval)
         .listen((e) {
       if (!mounted) return;
-      // Heading from raw magnetometer (flat phone assumed):
-      // atan2(y, x) gives angle from magnetic East; rotate to North.
-      double raw = math.atan2(e.y, e.x) * 180 / math.pi;
+      // Compass heading (flat phone): 0=North, 90=East, clockwise.
+      // x = device right, y = device top. When top points North, y is max → atan2(x,y) → 0°.
+      double raw = math.atan2(e.x, e.y) * 180 / math.pi;
       raw = (raw + 360) % 360;
 
-      // Low-pass filter to smooth jitter
+      // Low-pass filter (0.25 balances smoothness vs responsiveness)
       double diff = raw - _heading;
       if (diff > 180) diff -= 360;
       if (diff < -180) diff += 360;
-      setState(() => _heading = (_heading + diff * 0.12) % 360);
+      setState(() => _heading = (_heading + diff * 0.25) % 360);
     });
   }
 

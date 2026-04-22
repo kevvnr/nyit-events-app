@@ -102,7 +102,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
         }
       }
 
-      final events = await eventService.getEvents(limit: 200);
+      final events = await eventService.getEvents();
       final conflicts = <String>{};
       for (final e in events) {
         for (final s in upcomingSlots) {
@@ -1452,7 +1452,6 @@ class _EventCardState extends ConsumerState<_EventCard> {
   String _formatEventTime(EventModel event) {
     final now = DateTime.now();
     final start = event.startTime;
-    final diff = start.difference(now);
 
     if (event.isHappeningNow) {
       final endDiff = event.endTime.difference(now);
@@ -1462,11 +1461,15 @@ class _EventCardState extends ConsumerState<_EventCard> {
       return 'Ends in ${endDiff.inMinutes}m';
     }
 
-    if (diff.inDays == 0) {
+    final nowDay = DateTime(now.year, now.month, now.day);
+    final startDay = DateTime(start.year, start.month, start.day);
+    final daysDiff = startDay.difference(nowDay).inDays;
+
+    if (daysDiff == 0) {
       return 'Today, ${DateFormat('h:mm a').format(start)}';
-    } else if (diff.inDays == 1) {
+    } else if (daysDiff == 1) {
       return 'Tomorrow, ${DateFormat('h:mm a').format(start)}';
-    } else if (diff.inDays < 7) {
+    } else if (daysDiff < 7) {
       return DateFormat('EEEE, h:mm a').format(start);
     }
     return DateFormat('MMM d, h:mm a').format(start);

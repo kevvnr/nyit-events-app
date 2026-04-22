@@ -127,11 +127,10 @@ class EventService {
   }
 
   // Get all published events
-  Future<List<EventModel>> getEvents({int limit = 50}) async {
+  Future<List<EventModel>> getEvents() async {
     final snapshot = await _db
         .collection(AppConfig.eventsCol)
         .where('status', isEqualTo: AppConfig.eventPublished)
-        .limit(limit)
         .get();
     final events = snapshot.docs
         .map((doc) => EventModel.fromFirestore(doc))

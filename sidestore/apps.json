@@ -17,6 +17,13 @@
       "screenshotURLs": [],
       "versions": [
         {
+          "version": "1.8.1",
+          "date": "2026-04-21",
+          "localizedDescription": "v1.8.1 — Polish & accuracy fixes.\n\n• Feed: Today/Tomorrow labels now match the calendar day correctly\n• AR wayfinding: compass now points the right way and updates smoothly; distances shown in ft / mi\n• Analytics: active-event count now matches the Manage screen (cancelled events no longer double-counted)\n• Analytics: removed developer-only hints for a cleaner dashboard\n• Event calendar: auto-refreshes on resume and after viewing an event\n• Admin: removed 50-event cap so all events are visible",
+          "downloadURL": "https://kevvnr.github.io/nyit-events-app/NYITCampusEvents.ipa",
+          "size": 22621092
+        },
+        {
           "version": "1.8.0",
           "date": "2026-04-20",
           "localizedDescription": "v1.8.0 — Bug fixes and Firebase improvements.\n\n• Fixed room capacity overrides (admin setting now saves and loads correctly)\n• Removed campaigns feature\n• Fixed login bug that could corrupt user segment data\n• Search bar now shows loading spinner while searching\n• Tablet navigation haptic feedback\n• Stability and performance improvements",

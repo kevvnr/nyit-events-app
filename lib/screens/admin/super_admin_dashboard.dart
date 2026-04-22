@@ -82,8 +82,11 @@ Future<void> _loadStats() async {
     ]);
 
     final events = results[0].docs;
-    final publishedIds =
-        events.map((e) => e.id).toSet();
+    // Exclude cancelled events so RSVPs/check-ins don't count against them
+    final publishedIds = events
+        .where((e) => e.data()['isCancelled'] != true)
+        .map((e) => e.id)
+        .toSet();
 
     final sortedEvents = events
         .map((e) => {
@@ -119,6 +122,7 @@ Future<void> _loadStats() async {
     final nowTs = DateTime.now();
     final activeEventCount = results[0].docs.where((doc) {
       final data = doc.data();
+      if (data['isCancelled'] == true) return false;
       final endTs = data['endTime'];
       if (endTs == null) return false;
       final endTime = (endTs as Timestamp).toDate();
@@ -989,59 +993,6 @@ Future<void> _loadStats() async {
                             );
                           }),
 
-                        const SizedBox(height: 16),
-                        Container(
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            color: AppConfig.primaryColor
-                                .withOpacity(0.06),
-                            borderRadius:
-                                BorderRadius.circular(12),
-                            border: Border.all(
-                              color: AppConfig.primaryColor
-                                  .withOpacity(0.15),
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(
-                                  Icons.info_outline_rounded,
-                                  size: 18,
-                                  color:
-                                      AppConfig.primaryColor),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment
-                                          .start,
-                                  children: [
-                                    const Text(
-                                      'Counts out of sync?',
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        fontWeight:
-                                            FontWeight.w600,
-                                        color: AppConfig
-                                            .primaryColor,
-                                      ),
-                                    ),
-                                    Text(
-                                      'Tap sync ↑ to fix counts. Tap archive ↑ to move ended events to Past Events.',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: AppConfig
-                                            .primaryColor
-                                            .withOpacity(
-                                                0.7),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
                       ],
                     ),
                   ),
