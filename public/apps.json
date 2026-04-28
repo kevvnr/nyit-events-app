@@ -35,6 +35,34 @@
       ],
       "versions": [
         {
+          "version": "1.9.1",
+          "date": "2026-04-28",
+          "localizedDescription": "v1.9.1 — Polish + conflict guard.\n\n• Apple-style polish across the map, feed, profile and calendar (refined typography, softer shadows, larger radii, glass-effect controls)\n• Map: Parking toggle is now an inline filter chip; live-now badge upgraded to a glass pill\n• Calendar: hosted/RSVP'd/open events now appear with a date chip and status badge\n• Conflict guard: students can no longer RSVP to events that overlap with another RSVP — a clear message points back to the conflicting event\n• Fixed bottom overflow on the 'Tonight at NYIT' cards in the For You feed\n• Removed image upload from event creation while we wire up storage\n• Removed past-event toggles from feed and map for a focused upcoming-only view",
+          "downloadURL": "https://kevvnr.github.io/nyit-events-app/NYITCampusEvents.ipa",
+          "size": 20037075
+        },
+        {
+          "version": "1.9.0",
+          "date": "2026-04-27",
+          "localizedDescription": "v1.9.0 — Real-time everywhere + smart reminders.\n\n• Feed: live ticker keeps Today/Tomorrow/'Starts in X min' labels accurate; events no longer appear twice across Smart Picks / Tonight / featured-pick sections\n• My Events, attendee lists, and the super-admin dashboard now stream live (no more pull-to-refresh needed)\n• Lock-screen reminders 1 day, 1 hour, and 15 min before each event you RSVP'd to (with location)\n• Server-side RSVP / waitlist / check-in counts (no more drift between devices)\n• Automatic waitlist promotion when a seat opens\n• Nightly cleanup archives ended events and prunes old notifications",
+          "downloadURL": "https://kevvnr.github.io/nyit-events-app/NYITCampusEvents.ipa",
+          "size": 20052508
+        },
+        {
+          "version": "1.8.1",
+          "date": "2026-04-21",
+          "localizedDescription": "v1.8.1 — Polish & accuracy fixes.",
+          "downloadURL": "https://kevvnr.github.io/nyit-events-app/NYITCampusEvents.ipa",
+          "size": 22621092
+        },
+        {
+          "version": "1.8.0",
+          "date": "2026-04-20",
+          "localizedDescription": "v1.8.0 — Bug fixes and Firebase improvements.",
+          "downloadURL": "https://kevvnr.github.io/nyit-events-app/NYITCampusEvents.ipa",
+          "size": 19000000
+        },
+        {
           "version": "1.7.0",
           "date": "2026-04-19",
           "localizedDescription": "• AR Navigate — camera overlay guides you to the venue\\n• Announcement dismissal persists across sessions\\n• Dashboard: Live/Upcoming/Past tabs, full-screen stats\\n• Feed layout polish and safe-area fixes",
