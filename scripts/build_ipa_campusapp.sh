@@ -2,6 +2,12 @@
 # Signed development IPA (Personal Team) → always leaves build/ios/ipa/CampusApp.ipa
 set -euo pipefail
 
+# Force UTF-8 so CocoaPods + Ruby 4.x don't choke on the parent path
+# (paths containing non-ASCII or even spaces can default to ASCII-8BIT under Ruby 4).
+export LANG=en_US.UTF-8
+export LC_ALL=en_US.UTF-8
+export RUBYOPT='-Eutf-8'
+
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 

@@ -14,17 +14,51 @@ class NotificationsScreen extends ConsumerWidget {
     if (user == null) return const Scaffold();
 
     return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Text('Notifications'),
+        backgroundColor: Colors.white,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
+        titleSpacing: 20,
+        title: const Text(
+          'Notifications',
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.5,
+            color: Color(0xFF0F172A),
+          ),
+        ),
         actions: [
-          TextButton(
-            onPressed: () => _markAllRead(user.uid),
-            child: const Text(
-              'Mark all read',
-              style: TextStyle(fontSize: 13),
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: TextButton(
+              onPressed: () => _markAllRead(user.uid),
+              style: TextButton.styleFrom(
+                foregroundColor: const Color(0xFF1565C0),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 12, vertical: 8),
+              ),
+              child: const Text(
+                'Mark all read',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: -0.1,
+                ),
+              ),
             ),
           ),
         ],
+        bottom: const PreferredSize(
+          preferredSize: Size.fromHeight(1),
+          child: Divider(
+            height: 1,
+            thickness: 1,
+            color: Color(0xFFEEF2F7),
+          ),
+        ),
       ),
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
@@ -47,24 +81,37 @@ class NotificationsScreen extends ConsumerWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
-                    Icons.notifications_none_rounded,
-                    size: 64,
-                    color: Colors.grey.shade300,
+                  Container(
+                    width: 88,
+                    height: 88,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1565C0)
+                          .withValues(alpha: 0.06),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.notifications_none_rounded,
+                      size: 40,
+                      color: Color(0xFF1565C0),
+                    ),
                   ),
-                  const SizedBox(height: 16),
-                  Text(
+                  const SizedBox(height: 18),
+                  const Text(
                     'No notifications yet',
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleMedium,
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.3,
+                      color: Color(0xFF0F172A),
+                    ),
                   ),
-                  const SizedBox(height: 8),
-                  Text(
+                  const SizedBox(height: 6),
+                  const Text(
                     'You\'ll be notified about your events here',
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodyMedium,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Color(0xFF64748B),
+                    ),
                     textAlign: TextAlign.center,
                   ),
                 ],

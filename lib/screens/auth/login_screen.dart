@@ -20,6 +20,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   bool _obscurePassword = true;
   bool _isLoading = false;
 
+  static const _primary = Color(0xFF1565C0);
+  static const _ink = Color(0xFF0F172A);
+  static const _muted = Color(0xFF64748B);
+  static const _hairline = Color(0xFFE2E8F0);
+  static const _fieldFill = Color(0xFFF8FAFC);
+
   @override
   void dispose() {
     _emailController.dispose();
@@ -64,12 +70,52 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           SnackBar(
             content: Text(_friendlyError(e)),
             backgroundColor: Colors.red.shade700,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
           ),
         );
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  InputDecoration _fieldDecoration({String? hint, Widget? suffixIcon}) {
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: const TextStyle(
+        color: Color(0xFF94A3B8),
+        fontSize: 14,
+        letterSpacing: -0.2,
+      ),
+      contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16, vertical: 16),
+      filled: true,
+      fillColor: _fieldFill,
+      suffixIcon: suffixIcon,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(color: _hairline),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(color: _hairline),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(color: _primary, width: 1.5),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(color: Colors.red, width: 1),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(color: Colors.red, width: 1.5),
+      ),
+    );
   }
 
   @override
@@ -81,15 +127,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           // Top navy header
           Container(
             width: double.infinity,
-            color: const Color(0xFF1a3a6b),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF1a3a6b), Color(0xFF1565C0)],
+              ),
+            ),
             child: SafeArea(
               bottom: false,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // NYIT logo text
                     const Text(
                       'NEW YORK INSTITUTE\nOF TECHNOLOGY',
                       style: TextStyle(
@@ -100,12 +151,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         height: 1.3,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 6),
                     Text(
                       'Sign in with your NYIT account',
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.7),
+                        color: Colors.white.withValues(alpha: 0.78),
                         fontSize: 13,
+                        letterSpacing: -0.2,
                       ),
                     ),
                   ],
@@ -117,69 +169,54 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           // Form
           Expanded(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
               child: Form(
                 key: _formKey,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const SizedBox(height: 8),
-
                     const Text(
                       'Sign In',
                       style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF1a3a6b),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Email field
-                    const Text(
-                      'Username',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF1a3a6b),
+                        fontSize: 26,
+                        fontWeight: FontWeight.w800,
+                        color: _ink,
+                        letterSpacing: -0.6,
                       ),
                     ),
                     const SizedBox(height: 6),
+                    const Text(
+                      'Welcome back. Enter your credentials.',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: _muted,
+                        letterSpacing: -0.2,
+                      ),
+                    ),
+                    const SizedBox(height: 28),
+
+                    // Email field
+                    const Text(
+                      'Email',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: _ink,
+                        letterSpacing: -0.2,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
                     TextFormField(
                       controller: _emailController,
                       keyboardType: TextInputType.emailAddress,
                       autocorrect: false,
                       style: const TextStyle(
-                          fontSize: 15, color: Color(0xFF1a3a6b)),
-                      decoration: InputDecoration(
-                        hintText: 'you@nyit.edu',
-                        hintStyle: TextStyle(
-                            color: Colors.grey.shade400, fontSize: 14),
-                        contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 14),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(6),
-                          borderSide:
-                              BorderSide(color: Colors.grey.shade400),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(6),
-                          borderSide:
-                              BorderSide(color: Colors.grey.shade400),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(6),
-                          borderSide: const BorderSide(
-                              color: Color(0xFF1565C0), width: 2),
-                        ),
-                        errorBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(6),
-                          borderSide: const BorderSide(
-                              color: Colors.red, width: 1),
-                        ),
-                        filled: true,
-                        fillColor: Colors.white,
+                        fontSize: 15,
+                        color: _ink,
+                        letterSpacing: -0.2,
                       ),
+                      decoration:
+                          _fieldDecoration(hint: 'you@nyit.edu'),
                       validator: (val) {
                         if (val == null || val.isEmpty) {
                           return 'Email is required';
@@ -190,58 +227,39 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         return null;
                       },
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 18),
 
                     // Password field
                     const Text(
                       'Password',
                       style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF1a3a6b),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: _ink,
+                        letterSpacing: -0.2,
                       ),
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 8),
                     TextFormField(
                       controller: _passwordController,
                       obscureText: _obscurePassword,
                       style: const TextStyle(
-                          fontSize: 15, color: Color(0xFF1a3a6b)),
-                      decoration: InputDecoration(
-                        contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 14),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(6),
-                          borderSide:
-                              BorderSide(color: Colors.grey.shade400),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(6),
-                          borderSide:
-                              BorderSide(color: Colors.grey.shade400),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(6),
-                          borderSide: const BorderSide(
-                              color: Color(0xFF1565C0), width: 2),
-                        ),
-                        errorBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(6),
-                          borderSide: const BorderSide(
-                              color: Colors.red, width: 1),
-                        ),
-                        filled: true,
-                        fillColor: Colors.white,
+                        fontSize: 15,
+                        color: _ink,
+                        letterSpacing: -0.2,
+                      ),
+                      decoration: _fieldDecoration(
+                        hint: 'Enter your password',
                         suffixIcon: IconButton(
                           icon: Icon(
                             _obscurePassword
                                 ? Icons.visibility_outlined
                                 : Icons.visibility_off_outlined,
-                            color: Colors.grey.shade500,
+                            color: _muted,
                             size: 20,
                           ),
-                          onPressed: () => setState(
-                              () => _obscurePassword = !_obscurePassword),
+                          onPressed: () => setState(() =>
+                              _obscurePassword = !_obscurePassword),
                         ),
                       ),
                       validator: (val) {
@@ -251,40 +269,58 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         return null;
                       },
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 24),
 
                     // Sign in button
                     SizedBox(
                       width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: _isLoading ? null : _login,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF1565C0),
-                          foregroundColor: Colors.white,
-                          padding:
-                              const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          elevation: 0,
-                          textStyle: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
+                      height: 52,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(14),
+                          boxShadow: _isLoading
+                              ? []
+                              : [
+                                  BoxShadow(
+                                    color: _primary
+                                        .withValues(alpha: 0.25),
+                                    blurRadius: 12,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
                         ),
-                        child: _isLoading
-                            ? const SizedBox(
-                                height: 20,
-                                width: 20,
-                                child: CircularProgressIndicator(
-                                  color: Colors.white,
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Text('Sign in'),
+                        child: ElevatedButton(
+                          onPressed: _isLoading ? null : _login,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _primary,
+                            foregroundColor: Colors.white,
+                            disabledBackgroundColor:
+                                _primary.withValues(alpha: 0.6),
+                            disabledForegroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            elevation: 0,
+                            textStyle: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: -0.3,
+                            ),
+                          ),
+                          child: _isLoading
+                              ? const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Text('Sign in'),
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 14),
 
                     // Forgot password
                     Center(
@@ -325,34 +361,38 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           }
                         },
                         child: const Text(
-                          'Forgot Password?',
+                          'Forgot password?',
                           style: TextStyle(
-                            color: Color(0xFF1565C0),
+                            color: _primary,
                             fontSize: 14,
-                            decoration: TextDecoration.underline,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: -0.2,
                           ),
                         ),
                       ),
                     ),
 
-                    const SizedBox(height: 8),
                     Center(
                       child: TextButton(
                         onPressed: () =>
                             context.push(AppRoutes.register),
                         child: const Text(
-                          'Still Need Help? Contact the ITS Help Desk',
+                          'Still need help? Contact the ITS Help Desk',
                           style: TextStyle(
-                            color: Color(0xFF1565C0),
+                            color: _muted,
                             fontSize: 13,
-                            decoration: TextDecoration.underline,
+                            fontWeight: FontWeight.w500,
+                            letterSpacing: -0.2,
                           ),
                         ),
                       ),
                     ),
 
-                    const SizedBox(height: 32),
-                    const Divider(),
+                    const SizedBox(height: 20),
+                    Container(
+                      height: 1,
+                      color: _hairline,
+                    ),
                     const SizedBox(height: 16),
 
                     // Create account link
@@ -360,21 +400,31 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Text(
+                          const Text(
                             "Don't have an account? ",
                             style: TextStyle(
-                              color: Colors.grey.shade600,
+                              color: _muted,
                               fontSize: 14,
+                              letterSpacing: -0.2,
                             ),
                           ),
                           TextButton(
                             onPressed: () =>
                                 context.push(AppRoutes.register),
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 4),
+                              minimumSize: Size.zero,
+                              tapTargetSize:
+                                  MaterialTapTargetSize.shrinkWrap,
+                            ),
                             child: const Text(
                               'Create one',
                               style: TextStyle(
-                                color: Color(0xFF1565C0),
-                                fontWeight: FontWeight.w600,
+                                color: _primary,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: -0.2,
                               ),
                             ),
                           ),
@@ -389,24 +439,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
           // Footer
           Container(
-            color: Colors.grey.shade100,
+            color: const Color(0xFFF8FAFC),
             padding: const EdgeInsets.symmetric(
-                horizontal: 24, vertical: 12),
+                horizontal: 24, vertical: 14),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
+              children: const [
                 Text(
                   'Powered by NYIT',
                   style: TextStyle(
-                    color: Colors.grey.shade500,
+                    color: Color(0xFF94A3B8),
                     fontSize: 12,
+                    letterSpacing: -0.1,
                   ),
                 ),
                 Text(
                   'Privacy Policy',
                   style: TextStyle(
-                    color: Colors.grey.shade500,
+                    color: Color(0xFF94A3B8),
                     fontSize: 12,
+                    letterSpacing: -0.1,
                     decoration: TextDecoration.underline,
                   ),
                 ),

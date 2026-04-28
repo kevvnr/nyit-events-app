@@ -11,9 +11,9 @@ import '../admin/attendee_list_screen.dart';
 import '../admin/edit_event_screen.dart';
 import '../admin/qr_scanner_screen.dart';
 import '../../utils/map_directions.dart';
-import '../map/ar_wayfinding_screen.dart';
 import '../../models/event_model.dart';
 import '../../providers/event_provider.dart';
+import '../../services/event_service.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/notification_service.dart';
 import '../../services/analytics_service.dart';
@@ -144,6 +144,48 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
   Future<void> _handleRsvp(EventModel event) async {
     final user = ref.read(userModelProvider).asData?.value;
     if (user == null) return;
+
+    // Block new RSVPs that overlap with another event the user already joined.
+    if (_userRsvp == null) {
+      try {
+        final eventService = ref.read(eventServiceProvider);
+        final mySnap = await FirebaseFirestore.instance
+            .collection(AppConfig.rsvpsCol)
+            .where('userId', isEqualTo: user.uid)
+            .where('status', whereIn: [
+              AppConfig.rsvpConfirmed,
+              AppConfig.rsvpWaitlist,
+            ]).get();
+        for (final doc in mySnap.docs) {
+          final eid = doc.data()['eventId']?.toString();
+          if (eid == null || eid.isEmpty || eid == event.id) continue;
+          final other = await eventService.getEventById(eid);
+          if (other == null || other.isCancelled) continue;
+          if (EventService.timeRangesOverlap(
+            event.startTime,
+            event.endTime,
+            other.startTime,
+            other.endTime,
+          )) {
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'This event overlaps with "${other.title}". Cancel that RSVP first to join this one.',
+                ),
+                backgroundColor: Colors.orange.shade700,
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            );
+            return;
+          }
+        }
+      } catch (_) {/* fail open if check itself errors */}
+    }
+
     setState(() => _isLoading = true);
     try {
       final status = await ref
@@ -718,58 +760,6 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
                                   ),
                                 ),
                               ),
-                              const SizedBox(height: 8),
-                              // AR Wayfinding button
-                              GestureDetector(
-                                onTap: () => Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) =>
-                                        ARWayfindingScreen(event: event),
-                                  ),
-                                ),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 14,
-                                    vertical: 10,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.deepPurple.withOpacity(0.08),
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                      color:
-                                          Colors.deepPurple.withOpacity(0.22),
-                                    ),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        Icons.view_in_ar_rounded,
-                                        size: 18,
-                                        color: Colors.deepPurple.shade300,
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        'AR Navigate',
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w600,
-                                          color: Colors.deepPurple.shade300,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 6),
-                                      Icon(
-                                        Icons.auto_awesome,
-                                        size: 13,
-                                        color: Colors.deepPurple.shade200
-                                            .withOpacity(0.7),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 4),
                             ],
 
                             if (event.isUpcoming && !event.isHappeningNow) ...[

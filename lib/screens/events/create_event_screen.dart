@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:firebase_storage/firebase_storage.dart';
-import 'dart:io';
 import '../../config/app_config.dart';
 import '../../config/campus_locations.dart';
 import '../../providers/event_provider.dart';
@@ -39,9 +36,6 @@ class _CreateEventScreenState
   Set<String> _unavailableLocationKeys = {};
   bool _loadingAvailability = false;
   Map<String, int> _capacityLimits = {};
-  File? _selectedImage;
-  String? _uploadedImageUrl;
-  bool _isUploadingImage = false;
 
   List<CampusLocation> get _buildingLocations =>
       CampusLocations.all.where((l) => !l.isParking).toList();
@@ -74,126 +68,6 @@ class _CreateEventScreenState
     _locationController.dispose();
     _capacityController.dispose();
     super.dispose();
-  }
-
-  Future<void> _pickImage() async {
-    final picker = ImagePicker();
-    final source = await showModalBottomSheet<ImageSource>(
-      context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius:
-            BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey.shade300,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(height: 20),
-            const Text(
-              'Choose image source',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 20),
-            ListTile(
-              leading: Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: AppConfig.primaryColor
-                      .withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(22),
-                ),
-                child: const Icon(
-                  Icons.photo_library_rounded,
-                  color: AppConfig.primaryColor,
-                ),
-              ),
-              title: const Text('Photo Library'),
-              subtitle:
-                  const Text('Choose from your photos'),
-              onTap: () =>
-                  Navigator.pop(ctx, ImageSource.gallery),
-            ),
-            ListTile(
-              leading: Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: Colors.green.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(22),
-                ),
-                child: Icon(
-                  Icons.camera_alt_rounded,
-                  color: Colors.green.shade700,
-                ),
-              ),
-              title: const Text('Camera'),
-              subtitle: const Text('Take a new photo'),
-              onTap: () =>
-                  Navigator.pop(ctx, ImageSource.camera),
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
-    );
-
-    if (source == null) return;
-
-    final image = await picker.pickImage(
-      source: source,
-      maxWidth: 1200,
-      maxHeight: 800,
-      imageQuality: 85,
-    );
-
-    if (image == null) return;
-
-    setState(() {
-      _selectedImage = File(image.path);
-      _isUploadingImage = true;
-    });
-
-    try {
-      final ref = FirebaseStorage.instance
-          .ref()
-          .child('event_images')
-          .child(
-              '${DateTime.now().millisecondsSinceEpoch}.jpg');
-
-      await ref.putFile(_selectedImage!);
-      final url = await ref.getDownloadURL();
-
-      if (mounted) {
-        setState(() {
-          _uploadedImageUrl = url;
-          _isUploadingImage = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isUploadingImage = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Image upload failed: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
   }
 
   Future<void> _pickDateTime(
@@ -453,7 +327,6 @@ class _CreateEventScreenState
             locationLng: _lng,
             capacity: cap,
             vibeTags: _vibeTags,
-            imageUrl: _uploadedImageUrl,
           );
 
       if (event != null && mounted) {
@@ -523,144 +396,6 @@ class _CreateEventScreenState
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            // Image picker
-            GestureDetector(
-              onTap: _pickImage,
-              child: Container(
-                height: 180,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: _selectedImage != null
-                        ? AppConfig.primaryColor
-                        : Colors.grey.shade300,
-                    width: _selectedImage != null ? 2 : 1,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.04),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: _isUploadingImage
-                    ? const Center(
-                        child: Column(
-                          mainAxisAlignment:
-                              MainAxisAlignment.center,
-                          children: [
-                            CircularProgressIndicator(),
-                            SizedBox(height: 12),
-                            Text('Uploading image...'),
-                          ],
-                        ),
-                      )
-                    : _selectedImage != null
-                        ? ClipRRect(
-                            borderRadius:
-                                BorderRadius.circular(14),
-                            child: Stack(
-                              fit: StackFit.expand,
-                              children: [
-                                Image.file(
-                                  _selectedImage!,
-                                  fit: BoxFit.cover,
-                                ),
-                                Positioned(
-                                  bottom: 8,
-                                  right: 8,
-                                  child: Container(
-                                    padding: const EdgeInsets
-                                        .symmetric(
-                                        horizontal: 10,
-                                        vertical: 6),
-                                    decoration:
-                                        BoxDecoration(
-                                      color: Colors.black
-                                          .withOpacity(0.6),
-                                      borderRadius:
-                                          BorderRadius
-                                              .circular(20),
-                                    ),
-                                    child: const Row(
-                                      mainAxisSize:
-                                          MainAxisSize.min,
-                                      children: [
-                                        Icon(
-                                            Icons
-                                                .edit_rounded,
-                                            color:
-                                                Colors.white,
-                                            size: 12),
-                                        SizedBox(width: 4),
-                                        Text(
-                                          'Change',
-                                          style: TextStyle(
-                                            color:
-                                                Colors.white,
-                                            fontSize: 11,
-                                            fontWeight:
-                                                FontWeight
-                                                    .w600,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          )
-                        : Column(
-                            mainAxisAlignment:
-                                MainAxisAlignment.center,
-                            children: [
-                              Container(
-                                width: 56,
-                                height: 56,
-                                decoration: BoxDecoration(
-                                  color: AppConfig
-                                      .primaryColor
-                                      .withOpacity(0.1),
-                                  borderRadius:
-                                      BorderRadius.circular(
-                                          28),
-                                ),
-                                child: const Icon(
-                                  Icons
-                                      .add_photo_alternate_rounded,
-                                  color:
-                                      AppConfig.primaryColor,
-                                  size: 28,
-                                ),
-                              ),
-                              const SizedBox(height: 10),
-                              const Text(
-                                'Add Event Photo',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  color: AppConfig
-                                      .primaryColor,
-                                  fontSize: 14,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Tap to upload from library or camera',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color:
-                                      Colors.grey.shade500,
-                                ),
-                              ),
-                            ],
-                          ),
-              ),
-            ),
-            const SizedBox(height: 16),
-
             // Title
             _buildCard(
               child: TextFormField(

@@ -106,7 +106,6 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   EventModel? _selectedEvent;
   _CampusBuilding? _selectedBuilding;
   bool _showParking = false;
-  bool _showPastEvents = false;
   String _filter = 'All';
   LatLng? _userLatLng;
   StreamSubscription<Position>? _positionSub;
@@ -308,7 +307,6 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           // Today's events (for map markers and filter chips)
           final events = allEvents.where((e) {
             if (e.isCancelled) return false;
-            if (_showPastEvents) return true;
             // Show events that start today OR are currently happening today
             return e.startTime.isBefore(tomorrow) && e.endTime.isAfter(today);
           }).toList();
@@ -357,152 +355,72 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                         16, 12, 16, 0),
                     child: Column(
                       children: [
-                        Row(
+                        const Row(
                           children: [
-                            const Text(
+                            Text(
                               'Campus Map',
                               style: TextStyle(
-                                fontSize: 20,
+                                fontSize: 22,
                                 fontWeight: FontWeight.w700,
+                                letterSpacing: -0.5,
                                 color: Colors.white,
-                              ),
-                            ),
-                            const Spacer(),
-                            GestureDetector(
-                              onTap: () => setState(() =>
-                                  _showPastEvents =
-                                      !_showPastEvents),
-                              child: Container(
-                                padding: const EdgeInsets
-                                    .symmetric(
-                                    horizontal: 12,
-                                    vertical: 6),
-                                decoration: BoxDecoration(
-                                  color: _showPastEvents
-                                      ? Colors.white
-                                      : Colors.white.withOpacity(0.15),
-                                  borderRadius:
-                                      BorderRadius.circular(
-                                          20),
-                                  border: Border.all(
-                                    color: Colors.white.withOpacity(0.32),
-                                  ),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      Icons.history_rounded,
-                                      size: 14,
-                                      color: _showPastEvents
-                                          ? const Color(0xFF1565C0)
-                                          : Colors.white,
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      'Past',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight:
-                                            FontWeight.w600,
-                                        color: _showPastEvents
-                                            ? const Color(0xFF1565C0)
-                                            : Colors.white,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            // Parking toggle
-                            GestureDetector(
-                              onTap: () => setState(() =>
-                                  _showParking =
-                                      !_showParking),
-                              child: Container(
-                                padding: const EdgeInsets
-                                    .symmetric(
-                                    horizontal: 12,
-                                    vertical: 6),
-                                decoration: BoxDecoration(
-                                  color: _showParking
-                                      ? Colors.white
-                                      : Colors.white.withOpacity(0.15),
-                                  borderRadius:
-                                      BorderRadius.circular(
-                                          20),
-                                  border: Border.all(
-                                    color: Colors.white.withOpacity(0.32),
-                                  ),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      Icons
-                                          .local_parking_rounded,
-                                      size: 14,
-                                      color: _showParking
-                                          ? const Color(0xFF1565C0)
-                                          : Colors.white,
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      'Parking',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight:
-                                            FontWeight.w600,
-                                        color: _showParking
-                                            ? const Color(0xFF1565C0)
-                                            : Colors.white,
-                                      ),
-                                    ),
-                                  ],
-                                ),
                               ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 10),
-
-                        // Filter chips
-                        Row(
-                          children: [
-                            _FilterChip(
-                              label: 'Today',
-                              count: events.length,
-                              selected: _filter == 'All',
-                              color: const Color(0xFF1565C0),
-                              onTap: () => setState(
-                                  () => _filter = 'All'),
-                            ),
-                            const SizedBox(width: 8),
-                            _FilterChip(
-                              label: 'Live Now',
-                              count: events
-                                  .where(
-                                      (e) => e.isHappeningNow)
-                                  .length,
-                              selected: _filter == 'Now',
-                              color: Colors.green.shade700,
-                              onTap: () => setState(
-                                  () => _filter = 'Now'),
-                            ),
-                            const SizedBox(width: 8),
-                            _FilterChip(
-                              label: 'Upcoming',
-                              count: events
-                                  .where((e) => e.isUpcoming)
-                                  .length,
-                              selected:
-                                  _filter == 'Upcoming',
-                              color: Colors.orange.shade700,
-                              onTap: () => setState(() =>
-                                  _filter = 'Upcoming'),
-                            ),
-                          ],
-                      ),
                         const SizedBox(height: 12),
+
+                        // Filter chips (horizontally scrollable, parking inline)
+                        SizedBox(
+                          height: 32,
+                          child: ListView(
+                            scrollDirection: Axis.horizontal,
+                            physics: const BouncingScrollPhysics(),
+                            children: [
+                              _FilterChip(
+                                label: 'Today',
+                                count: events.length,
+                                selected: _filter == 'All',
+                                color: const Color(0xFF1565C0),
+                                onTap: () => setState(
+                                    () => _filter = 'All'),
+                              ),
+                              const SizedBox(width: 8),
+                              _FilterChip(
+                                label: 'Live Now',
+                                count: events
+                                    .where(
+                                        (e) => e.isHappeningNow)
+                                    .length,
+                                selected: _filter == 'Now',
+                                color: Colors.green.shade700,
+                                onTap: () => setState(
+                                    () => _filter = 'Now'),
+                              ),
+                              const SizedBox(width: 8),
+                              _FilterChip(
+                                label: 'Upcoming',
+                                count: events
+                                    .where((e) => e.isUpcoming)
+                                    .length,
+                                selected: _filter == 'Upcoming',
+                                color: Colors.orange.shade700,
+                                onTap: () => setState(() =>
+                                    _filter = 'Upcoming'),
+                              ),
+                              const SizedBox(width: 8),
+                              _FilterChip(
+                                label: 'Parking',
+                                icon: Icons.local_parking_rounded,
+                                selected: _showParking,
+                                color: const Color(0xFF455A64),
+                                onTap: () => setState(() =>
+                                    _showParking = !_showParking),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 14),
                       ],
                     ),
                   ),
@@ -673,47 +591,65 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                     ),
                   ],
                 ),
-                  // Zoom controls
+                  // Live now glass pill
                   Positioned(
                     left: 12,
                     top: 12,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.92),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                          color: const Color(0xFFDBE7F5),
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.1),
-                            blurRadius: 10,
-                            offset: const Offset(0, 3),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(999),
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
                           ),
-                        ],
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.auto_awesome_rounded,
-                            color: Color(0xFF1565C0),
-                            size: 15,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            '${filteredEvents.where((e) => e.isHappeningNow).length} live now',
-                            style: const TextStyle(
-                              color: Color(0xFF0F172A),
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.78),
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.6),
+                              width: 0.6,
                             ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.08),
+                                blurRadius: 14,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
                           ),
-                        ],
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                width: 8,
+                                height: 8,
+                                decoration: BoxDecoration(
+                                  color: Colors.green.shade500,
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.green.shade400
+                                          .withValues(alpha: 0.6),
+                                      blurRadius: 6,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 7),
+                              Text(
+                                '${filteredEvents.where((e) => e.isHappeningNow).length} live now',
+                                style: const TextStyle(
+                                  color: Color(0xFF0F172A),
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: -0.1,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -769,15 +705,14 @@ class _MapScreenState extends ConsumerState<MapScreen> {
               // Bottom sheet
               Container(
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.96),
-                  borderRadius: BorderRadius.vertical(
-                      top: Radius.circular(20)),
-                  border: Border.all(color: const Color(0xFFE2E8F0)),
-                  boxShadow: const [
+                  color: Colors.white,
+                  borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(28)),
+                  boxShadow: [
                     BoxShadow(
-                      color: Colors.black12,
-                      blurRadius: 18,
-                      offset: Offset(0, -4),
+                      color: Colors.black.withValues(alpha: 0.08),
+                      blurRadius: 24,
+                      offset: const Offset(0, -6),
                     ),
                   ],
                 ),
@@ -786,12 +721,12 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                   children: [
                     // Handle
                     Container(
-                      width: 36,
-                      height: 4,
-                      margin: const EdgeInsets.only(top: 10),
+                      width: 38,
+                      height: 5,
+                      margin: const EdgeInsets.only(top: 8),
                       decoration: BoxDecoration(
-                        color: Colors.grey.shade300,
-                        borderRadius: BorderRadius.circular(2),
+                        color: const Color(0xFFD1D5DB),
+                        borderRadius: BorderRadius.circular(3),
                       ),
                     ),
 
@@ -836,30 +771,32 @@ class _ZoomButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(14),
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
+        filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
         child: GestureDetector(
           onTap: onTap,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 220),
-            width: 42,
-            height: 42,
+            curve: Curves.easeOutCubic,
+            width: 44,
+            height: 44,
             decoration: BoxDecoration(
               color: active
                   ? const Color(0xFF1565C0)
-                  : Colors.white.withOpacity(0.9),
-              borderRadius: BorderRadius.circular(12),
+                  : Colors.white.withValues(alpha: 0.82),
+              borderRadius: BorderRadius.circular(14),
               border: Border.all(
                 color: active
-                    ? Colors.white.withOpacity(0.5)
-                    : const Color(0xFFD1DCEB),
+                    ? Colors.white.withValues(alpha: 0.5)
+                    : Colors.white.withValues(alpha: 0.6),
+                width: 0.6,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.14),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
+                  color: Colors.black.withValues(alpha: 0.12),
+                  blurRadius: 12,
+                  offset: const Offset(0, 3),
                 ),
               ],
             ),
@@ -877,14 +814,16 @@ class _ZoomButton extends StatelessWidget {
 
 class _FilterChip extends StatelessWidget {
   final String label;
-  final int count;
+  final int? count;
+  final IconData? icon;
   final bool selected;
   final Color color;
   final VoidCallback onTap;
 
   const _FilterChip({
     required this.label,
-    required this.count,
+    this.count,
+    this.icon,
     required this.selected,
     required this.color,
     required this.onTap,
@@ -892,52 +831,61 @@ class _FilterChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bg = selected ? color : Colors.white.withValues(alpha: 0.18);
+    final fg = selected ? Colors.white : Colors.white.withValues(alpha: 0.92);
+    final borderColor = selected
+        ? Colors.white.withValues(alpha: 0.65)
+        : Colors.white.withValues(alpha: 0.28);
+
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
         padding: const EdgeInsets.symmetric(
-            horizontal: 12, vertical: 6),
+            horizontal: 14, vertical: 7),
         decoration: BoxDecoration(
-          color: selected
-              ? color
-              : const Color(0xFFF1F5F9),
-          borderRadius: BorderRadius.circular(20),
+          color: bg,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: borderColor, width: 0.8),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (icon != null) ...[
+              Icon(icon, size: 14, color: fg),
+              const SizedBox(width: 5),
+            ],
             Text(
               label,
               style: TextStyle(
-                fontSize: 12,
+                fontSize: 12.5,
                 fontWeight: FontWeight.w600,
-                color: selected
-                    ? Colors.white
-                    : Colors.grey.shade600,
+                letterSpacing: -0.1,
+                color: fg,
               ),
             ),
-            const SizedBox(width: 4),
-            Container(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 6, vertical: 1),
-              decoration: BoxDecoration(
-                color: selected
-                    ? Colors.white.withOpacity(0.25)
-                    : Colors.grey.shade300,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Text(
-                '$count',
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
+            if (count != null) ...[
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 7, vertical: 1),
+                decoration: BoxDecoration(
                   color: selected
-                      ? Colors.white
-                      : Colors.grey.shade600,
+                      ? Colors.white.withValues(alpha: 0.28)
+                      : Colors.white.withValues(alpha: 0.22),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  '$count',
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w700,
+                    color: fg,
+                  ),
                 ),
               ),
-            ),
+            ],
           ],
         ),
       ),
@@ -1028,20 +976,23 @@ class _EventInfoCard extends StatelessWidget {
                       Text(
                         event.title,
                         style: const TextStyle(
-                          fontSize: 15,
+                          fontSize: 16,
                           fontWeight: FontWeight.w700,
-                          color: Color(0xFF1E293B),
+                          letterSpacing: -0.3,
+                          color: Color(0xFF0F172A),
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
+                      const SizedBox(height: 2),
                       Text(
                         event.locationName,
                         style: const TextStyle(
-                          fontSize: 12,
+                          fontSize: 12.5,
                           color: Color(0xFF64748B),
                         ),
                       ),
+                      const SizedBox(height: 2),
                       Text(
                         '${event.rsvpCount} going · ${event.spotsLeft} spots left',
                         style: const TextStyle(
@@ -1057,44 +1008,121 @@ class _EventInfoCard extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 6,
+          const SizedBox(height: 14),
+          Row(
             children: [
-              OutlinedButton.icon(
-                onPressed: onDirections,
-                icon: const Icon(Icons.directions_walk_rounded,
-                    size: 18),
-                label: const Text('Maps app'),
-              ),
-              OutlinedButton.icon(
-                onPressed: walkingRouteLoading
-                    ? null
-                    : onWalkingRoute,
-                icon: walkingRouteLoading
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                        ),
-                      )
-                    : const Icon(Icons.route_rounded, size: 18),
-                label: Text(
-                  walkingRouteLoading
-                      ? 'Routing…'
-                      : 'Walk route',
+              Expanded(
+                child: _MapActionButton(
+                  icon: Icons.directions_walk_rounded,
+                  label: 'Maps app',
+                  filled: false,
+                  onTap: onDirections,
                 ),
               ),
-              if (walkingRouteDrawn)
-                TextButton(
-                  onPressed: onClearRoute,
-                  child: const Text('Clear route'),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _MapActionButton(
+                  icon: Icons.route_rounded,
+                  label: walkingRouteLoading ? 'Routing…' : 'Walk route',
+                  filled: true,
+                  loading: walkingRouteLoading,
+                  onTap: walkingRouteLoading ? null : onWalkingRoute,
                 ),
+              ),
             ],
           ),
+          if (walkingRouteDrawn)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: onClearRoute,
+                  icon: const Icon(Icons.close_rounded, size: 16),
+                  label: const Text('Clear route'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: const Color(0xFF64748B),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
+              ),
+            ),
         ],
+      ),
+    );
+  }
+}
+
+class _MapActionButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool filled;
+  final bool loading;
+  final VoidCallback? onTap;
+
+  const _MapActionButton({
+    required this.icon,
+    required this.label,
+    required this.filled,
+    this.loading = false,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const primary = Color(0xFF1565C0);
+    final disabled = onTap == null;
+    final bg = filled
+        ? (disabled ? primary.withValues(alpha: 0.5) : primary)
+        : Colors.white;
+    final fg = filled ? Colors.white : primary;
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        height: 44,
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(14),
+          border: filled
+              ? null
+              : Border.all(color: const Color(0xFFE2E8F0)),
+          boxShadow: filled
+              ? [
+                  BoxShadow(
+                    color: primary.withValues(alpha: 0.25),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
+                ]
+              : null,
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (loading)
+              SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation(fg),
+                ),
+              )
+            else
+              Icon(icon, size: 17, color: fg),
+            const SizedBox(width: 7),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w600,
+                letterSpacing: -0.2,
+                color: fg,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1226,19 +1254,26 @@ class _EventListPreview extends StatelessWidget {
                     ),
                   ),
                   child: Container(
-                    width: 200,
+                    width: 210,
                     margin: const EdgeInsets.only(right: 10),
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(13),
                     decoration: BoxDecoration(
                       color: event.isHappeningNow
                           ? Colors.green.shade50
-                          : const Color(0xFFF8FAFC),
-                      borderRadius: BorderRadius.circular(12),
+                          : Colors.white,
+                      borderRadius: BorderRadius.circular(16),
                       border: Border.all(
                         color: event.isHappeningNow
                             ? Colors.green.shade200
-                            : const Color(0xFFE2E8F0),
+                            : const Color(0xFFEEF2F7),
                       ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.04),
+                          blurRadius: 10,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,

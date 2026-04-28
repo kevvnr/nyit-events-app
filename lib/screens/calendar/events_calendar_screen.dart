@@ -76,6 +76,8 @@ class _EventsCalendarScreenState extends ConsumerState<EventsCalendarScreen>
       final db = FirebaseFirestore.instance;
       final byId = <String, _CalEvent>{};
 
+      // 1) User's RSVPs (so we can badge events as RSVP'd / Waitlist / Hosting)
+      final rsvpStatusByEvent = <String, String>{};
       final rsvpSnap = await db
           .collection(AppConfig.rsvpsCol)
           .where('userId', isEqualTo: user.uid)
@@ -84,49 +86,22 @@ class _EventsCalendarScreenState extends ConsumerState<EventsCalendarScreen>
             whereIn: [AppConfig.rsvpConfirmed, AppConfig.rsvpWaitlist],
           )
           .get();
-
-      final rsvpEventIds = <String>{};
-      final rsvpStatusByEvent = <String, String>{};
       for (final doc in rsvpSnap.docs) {
         final data = doc.data();
         final eid = data['eventId']?.toString();
         if (eid == null || eid.isEmpty) continue;
-        rsvpEventIds.add(eid);
         rsvpStatusByEvent[eid] = (data['status'] ?? '').toString();
       }
 
-      if (user.canCreateEvents) {
-        final hostedSnap = await db
-            .collection(AppConfig.eventsCol)
-            .where('hostId', isEqualTo: user.uid)
-            .where('status', isEqualTo: AppConfig.eventPublished)
-            .get();
-        for (final doc in hostedSnap.docs) {
-          rsvpEventIds.add(doc.id);
-        }
-      }
-
-      final eventIds = rsvpEventIds.toList();
-      final rawById = <String, Map<String, dynamic>>{};
-      for (var i = 0; i < eventIds.length; i += 10) {
-        final chunk = eventIds.sublist(
-          i,
-          (i + 10 > eventIds.length) ? eventIds.length : i + 10,
-        );
-        final snap = await db
-            .collection(AppConfig.eventsCol)
-            .where(FieldPath.documentId, whereIn: chunk)
-            .get();
-        for (final doc in snap.docs) {
-          rawById[doc.id] = doc.data();
-        }
-      }
-
-      for (final entry in rawById.entries) {
-        final id = entry.key;
-        final raw = entry.value;
-        final status = (raw['status'] ?? '').toString();
-        if (status == AppConfig.eventCancelled) continue;
+      // 2) ALL published events — show every event on the calendar so it's
+      // never blank. RSVP'd / hosted ones get a badge; the rest are shown as
+      // "Open" so students can browse and RSVP from the calendar.
+      final eventsSnap = await db
+          .collection(AppConfig.eventsCol)
+          .where('status', isEqualTo: AppConfig.eventPublished)
+          .get();
+      for (final doc in eventsSnap.docs) {
+        final raw = doc.data();
         final startTs = raw['startTime'] as Timestamp?;
         final endTs = raw['endTime'] as Timestamp?;
         if (startTs == null || endTs == null) continue;
@@ -135,7 +110,7 @@ class _EventsCalendarScreenState extends ConsumerState<EventsCalendarScreen>
         final title = (raw['title'] ?? 'Event').toString();
         final hostId = (raw['hostId'] ?? '').toString();
         final isHost = hostId == user.uid;
-        final rsvpSt = rsvpStatusByEvent[id];
+        final rsvpSt = rsvpStatusByEvent[doc.id];
         String badge;
         if (isHost && rsvpSt != null) {
           badge = 'Hosting · ${rsvpSt == AppConfig.rsvpWaitlist ? 'Waitlist' : 'RSVP’d'}';
@@ -143,11 +118,13 @@ class _EventsCalendarScreenState extends ConsumerState<EventsCalendarScreen>
           badge = 'Hosting';
         } else if (rsvpSt == AppConfig.rsvpWaitlist) {
           badge = 'Waitlist';
-        } else {
+        } else if (rsvpSt == AppConfig.rsvpConfirmed) {
           badge = 'RSVP’d';
+        } else {
+          badge = 'Open';
         }
-        byId[id] = _CalEvent(
-          eventId: id,
+        byId[doc.id] = _CalEvent(
+          eventId: doc.id,
           title: title,
           start: start,
           end: end,
@@ -247,11 +224,18 @@ class _EventsCalendarScreenState extends ConsumerState<EventsCalendarScreen>
                     ],
                   ),
                   const SizedBox(height: 12),
-                  Card(
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      side: BorderSide(color: Colors.grey.shade200),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(22),
+                      border: Border.all(color: const Color(0xFFEEF2F7)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.04),
+                          blurRadius: 14,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
                     ),
                     child: Padding(
                       padding: const EdgeInsets.only(bottom: 12),
@@ -320,9 +304,12 @@ class _EventsCalendarScreenState extends ConsumerState<EventsCalendarScreen>
                     _selectedDay == null
                         ? 'Select a day'
                         : DateFormat('EEEE, MMM d').format(_selectedDay!),
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
+                    style: const TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.4,
+                      color: Color(0xFF0F172A),
+                    ),
                   ),
                   const SizedBox(height: 10),
                   if (selected.isEmpty)
@@ -356,66 +343,128 @@ class _EventListTile extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 10),
       child: Material(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(14),
-          onTap: () async {
-            await Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => EventDetailScreen(eventId: event.eventId),
+        borderRadius: BorderRadius.circular(18),
+        shadowColor: Colors.black.withValues(alpha: 0.05),
+        elevation: 0,
+        child: Ink(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0xFFEEF2F7)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.03),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
               ),
-            );
-            onReturn?.call();
-          },
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Row(
-              children: [
-                Container(
-                  width: 4,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: AppConfig.primaryColor,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
+            ],
+          ),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(18),
+            onTap: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => EventDetailScreen(eventId: event.eventId),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        event.title,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 15,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
+              );
+              onReturn?.call();
+            },
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [Color(0xFF1E5BB8), Color(0xFF1565C0)],
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${DateFormat('h:mm a').format(event.start)} – ${DateFormat('h:mm a').format(event.end)}',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey.shade600,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppConfig.primaryColor.withValues(alpha: 0.25),
+                          blurRadius: 8,
+                          offset: const Offset(0, 3),
                         ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        event.badge,
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: AppConfig.primaryColor,
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          DateFormat('MMM').format(event.start).toUpperCase(),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.6,
+                          ),
                         ),
-                      ),
-                    ],
+                        Text(
+                          DateFormat('d').format(event.start),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            height: 1.1,
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                Icon(Icons.chevron_right_rounded, color: Colors.grey.shade400),
-              ],
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          event.title,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 15.5,
+                            letterSpacing: -0.3,
+                            color: Color(0xFF0F172A),
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          '${DateFormat('h:mm a').format(event.start)} – ${DateFormat('h:mm a').format(event.end)}',
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            color: Color(0xFF64748B),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: AppConfig.primaryColor.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            event.badge,
+                            style: TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: -0.1,
+                              color: AppConfig.primaryColor,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(Icons.chevron_right_rounded,
+                      color: Colors.grey.shade400),
+                ],
+              ),
             ),
           ),
         ),

@@ -28,7 +28,6 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
   String _selectedCategory = 'All';
   final _searchController = TextEditingController();
   String _searchQuery = '';
-  bool _showPastEvents = false;
   bool _showSearch = false;
   String? _dismissedAnnouncementId;
   static const _prefKeyDismissed = 'dismissed_announcement_id';
@@ -142,11 +141,9 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
   }
 
   bool get _isDiscoveryContext =>
-      _selectedCategory == 'All' &&
-      _searchQuery.trim().isEmpty &&
-      !_showPastEvents;
+      _selectedCategory == 'All' && _searchQuery.trim().isEmpty;
 
-  String _copilotReason(EventModel event) {
+  String _featuredPickReason(EventModel event) {
     final likes = _categoryAffinity[event.category] ?? 0;
     if (event.isHappeningNow) {
       return 'Live now and matches your discovery profile.';
@@ -205,10 +202,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
       final matchesCategory =
           _selectedCategory == 'All' || event.category == _selectedCategory;
       final notEnded = event.endTime.isAfter(now);
-      final isPast = event.endTime.isBefore(now);
-      return matchesCategory &&
-          !event.isCancelled &&
-          (notEnded || (_showPastEvents && isPast));
+      return matchesCategory && !event.isCancelled && notEnded;
     }).toList();
 
     filtered.sort((a, b) {
@@ -243,7 +237,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
           children: [
             _CompactFeedHeader(
               userName: user?.name ?? '',
-              showPast: _showPastEvents,
+              showPast: false,
               feedSegment: _feedSegment,
               onFeedSegmentChanged: (v) => setState(() => _feedSegment = v),
             ),
@@ -494,98 +488,9 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
                     ),
                   ),
 
-                  // Past events toggle
-                  Tooltip(
-                    message: _showPastEvents
-                        ? 'Hide past events'
-                        : 'Show past events',
-                    child: GestureDetector(
-                      onTap: () {
-                        setState(() => _showPastEvents = !_showPastEvents);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              _showPastEvents
-                                  ? 'Showing past events'
-                                  : 'Past events hidden',
-                            ),
-                            behavior: SnackBarBehavior.floating,
-                            duration: const Duration(seconds: 1),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
-                        );
-                      },
-                      child: Container(
-                        margin: const EdgeInsets.only(right: 16, top: 10),
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          color: _showPastEvents
-                              ? const Color(0xFF1565C0).withOpacity(0.1)
-                              : Colors.white,
-                          borderRadius: BorderRadius.circular(18),
-                          border: Border.all(
-                            color: _showPastEvents
-                                ? const Color(0xFF1565C0)
-                                : const Color(0xFFE2E8F0),
-                          ),
-                        ),
-                        child: Icon(
-                          Icons.history_rounded,
-                          size: 18,
-                          color: _showPastEvents
-                              ? const Color(0xFF1565C0)
-                              : Colors.grey.shade400,
-                        ),
-                      ),
-                    ),
-                  ),
                 ],
               ),
             ),
-
-            // Past events indicator
-            if (_showPastEvents)
-              Container(
-                margin: const EdgeInsets.fromLTRB(16, 4, 16, 0),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1565C0).withOpacity(0.08),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.history_rounded,
-                      size: 14,
-                      color: const Color(0xFF1565C0),
-                    ),
-                    const SizedBox(width: 6),
-                    const Text(
-                      'Showing past events',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Color(0xFF1565C0),
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const Spacer(),
-                    GestureDetector(
-                      onTap: () => setState(() => _showPastEvents = false),
-                      child: const Icon(
-                        Icons.close_rounded,
-                        size: 14,
-                        color: Color(0xFF1565C0),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
 
             // Events list
             Expanded(
@@ -637,47 +542,100 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
                     ),
                   ),
                 ),
-                data: (events) {
+                data: (rawEvents) {
+                  // Deduplicate at the source. We dedupe by id AND by content
+                  // signature (title + startTime + location) so that accidental
+                  // duplicate Firestore documents — distinct ids but identical
+                  // event data — only render once. First occurrence wins.
+                  final seenIds = <String>{};
+                  final seenSigs = <String>{};
+                  final events = <EventModel>[
+                    for (final e in rawEvents)
+                      if (seenIds.add(e.id) &&
+                          seenSigs.add(
+                            '${e.title.trim().toLowerCase()}|'
+                            '${e.startTime.millisecondsSinceEpoch}|'
+                            '${e.locationName.trim().toLowerCase()}',
+                          ))
+                        e,
+                  ];
                   final filtered = _filterEvents(events);
-                  final recommended =
-                      filtered
-                          .where(
-                            (e) =>
-                                !e.isPast &&
-                                !_conflictingEventIds.contains(e.id),
-                          )
-                          .toList()
-                        ..sort(
-                          (a, b) =>
-                              _discoveryScore(b).compareTo(_discoveryScore(a)),
-                        );
-                  final now = DateTime.now();
-                  final tonight = filtered
-                      .where(
-                        (e) =>
-                            e.startTime.year == now.year &&
-                            e.startTime.month == now.month &&
-                            e.startTime.day == now.day &&
-                            e.endTime.isAfter(now),
-                      )
-                      .take(5)
-                      .toList();
                   final discovery =
                       _feedSegment == 1 && _isDiscoveryContext;
-                  final showTonight = discovery && tonight.isNotEmpty;
-                  final showPicks = discovery && recommended.isNotEmpty;
-                  final aiPick = recommended.isNotEmpty
-                      ? recommended.first
-                      : null;
-                  final showAiCopilot = discovery && aiPick != null;
-                  final conflictSuggestions = filtered
+                  final now = DateTime.now();
+
+                  // Each section "claims" its events so no event is rendered
+                  // twice across Tonight / featured pick / Smart Picks / Conflict
+                  // Assistant / main list.
+                  final claimed = <String>{};
+
+                  final tonight = !discovery
+                      ? <EventModel>[]
+                      : filtered
+                          .where(
+                            (e) =>
+                                e.startTime.year == now.year &&
+                                e.startTime.month == now.month &&
+                                e.startTime.day == now.day &&
+                                e.endTime.isAfter(now) &&
+                                claimed.add(e.id),
+                          )
+                          .take(5)
+                          .toList();
+                  final showTonight = tonight.isNotEmpty;
+
+                  final recommendedPool = filtered
                       .where(
-                        (e) => _conflictingEventIds.contains(e.id) && !e.isPast,
+                        (e) =>
+                            !e.isPast &&
+                            !_conflictingEventIds.contains(e.id),
                       )
-                      .take(4)
+                      .toList()
+                    ..sort(
+                      (a, b) =>
+                          _discoveryScore(b).compareTo(_discoveryScore(a)),
+                    );
+
+                  EventModel? featuredPick;
+                  if (discovery) {
+                    for (final e in recommendedPool) {
+                      if (!claimed.contains(e.id)) {
+                        featuredPick = e;
+                        claimed.add(e.id);
+                        break;
+                      }
+                    }
+                  }
+                  final showFeaturedPick = featuredPick != null;
+
+                  final picks = !discovery
+                      ? <EventModel>[]
+                      : recommendedPool
+                          .where((e) => claimed.add(e.id))
+                          .take(3)
+                          .toList();
+                  final showPicks = picks.isNotEmpty;
+
+                  final conflictSuggestions = !discovery
+                      ? <EventModel>[]
+                      : filtered
+                          .where(
+                            (e) =>
+                                _conflictingEventIds.contains(e.id) &&
+                                !e.isPast &&
+                                claimed.add(e.id),
+                          )
+                          .take(4)
+                          .toList();
+                  final showConflictAssistant = conflictSuggestions.isNotEmpty;
+
+                  final mainList = filtered
+                      .where((e) => !claimed.contains(e.id))
                       .toList();
-                  final showConflictAssistant =
-                      discovery && conflictSuggestions.isNotEmpty;
+                  // When no sections are shown, nothing is claimed, so the
+                  // main list is the full filtered list (unchanged behavior).
+                  // Smart Picks rendering still expects up to 3 events:
+                  final recommended = picks;
                   if (filtered.isEmpty) {
                     return Center(
                       child: Column(
@@ -711,12 +669,10 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
                       final _ = ref.refresh(eventsStreamProvider);
                       await _loadSmartSignals();
                     },
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 250),
-                      child: ListView.builder(
-                        key: ValueKey(
-                          '${_selectedCategory}_${_searchQuery}_${_showPastEvents}_${_feedSegment}_${filtered.length}',
-                        ),
+                    child: ListView.builder(
+                      key: ValueKey(
+                        '${_selectedCategory}_${_searchQuery}_${_feedSegment}',
+                      ),
                         padding: EdgeInsets.fromLTRB(
                           16, 8, 16,
                           MediaQuery.paddingOf(context).bottom + 88,
@@ -725,7 +681,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
                             filtered.length +
                             (showTonight ? 1 : 0) +
                             (showPicks ? 1 : 0) +
-                            (showAiCopilot ? 1 : 0) +
+                            (showFeaturedPick ? 1 : 0) +
                             (showConflictAssistant ? 1 : 0),
                         itemBuilder: (context, index) {
                           if (showTonight && index == 0) {
@@ -744,17 +700,17 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
                           }
                           final conflictIndex =
                               (showTonight ? 1 : 0) + (showPicks ? 1 : 0);
-                          if (showAiCopilot && index == conflictIndex) {
+                          if (showFeaturedPick && index == conflictIndex) {
                             return Padding(
                               padding: const EdgeInsets.only(bottom: 8),
-                              child: _AiCopilotSection(
-                                event: aiPick,
-                                reason: _copilotReason(aiPick),
+                              child: _FeaturedPickSection(
+                                event: featuredPick!,
+                                reason: _featuredPickReason(featuredPick!),
                               ),
                             );
                           }
                           final conflictAssistantIndex =
-                              conflictIndex + (showAiCopilot ? 1 : 0);
+                              conflictIndex + (showFeaturedPick ? 1 : 0);
                           if (showConflictAssistant &&
                               index == conflictAssistantIndex) {
                             return Padding(
@@ -768,7 +724,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
                               index -
                               (showTonight ? 1 : 0) -
                               (showPicks ? 1 : 0) -
-                              (showAiCopilot ? 1 : 0) -
+                              (showFeaturedPick ? 1 : 0) -
                               (showConflictAssistant ? 1 : 0);
                           return Padding(
                             padding: const EdgeInsets.only(bottom: 12),
@@ -781,7 +737,6 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
                           );
                         },
                       ),
-                    ),
                   );
                 },
               ),
@@ -818,35 +773,36 @@ class _CompactFeedHeader extends StatelessWidget {
       shadowColor: Colors.transparent,
       child: Container(
         width: double.infinity,
-        padding: EdgeInsets.fromLTRB(16, topInset + 6, 16, 10),
-        decoration: BoxDecoration(
+        padding: EdgeInsets.fromLTRB(18, topInset + 10, 18, 12),
+        decoration: const BoxDecoration(
           color: Colors.white,
           border: Border(
-            bottom: BorderSide(color: Colors.grey.shade200),
+            bottom: BorderSide(color: Color(0xFFEEF2F7)),
           ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              'Good to see you, $firstName',
+              'Hi, $firstName',
               style: const TextStyle(
-                color: Color(0xFF1E293B),
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.1,
+                color: Color(0xFF0F172A),
+                fontSize: 22,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.6,
               ),
             ),
             const SizedBox(height: 2),
             Text(
-              showPast ? 'Browsing past events' : 'Upcoming events & filters below',
-              style: TextStyle(
-                color: Colors.grey.shade600,
-                fontSize: 12,
+              showPast ? 'Browsing past events' : 'Find your next event below',
+              style: const TextStyle(
+                color: Color(0xFF64748B),
+                fontSize: 13,
                 fontWeight: FontWeight.w500,
+                letterSpacing: -0.1,
               ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
             SegmentedButton<int>(
               segments: const [
                 ButtonSegment<int>(
@@ -980,17 +936,17 @@ class _TonightSpotlightSection extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           SizedBox(
-            height: 98,
+            height: 132,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               itemCount: events.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              separatorBuilder: (_, __) => const SizedBox(width: 10),
               itemBuilder: (context, index) {
                 final e = events[index];
                 return InkWell(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(16),
                   onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -998,31 +954,41 @@ class _TonightSpotlightSection extends StatelessWidget {
                     ),
                   ),
                   child: Container(
-                    width: 210,
-                    padding: const EdgeInsets.all(10),
+                    width: 220,
+                    padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xFFEEF2F7)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.04),
+                          blurRadius: 10,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
                           e.title,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
-                            fontSize: 13,
+                            fontSize: 13.5,
                             fontWeight: FontWeight.w700,
+                            letterSpacing: -0.2,
+                            color: Color(0xFF0F172A),
                           ),
                         ),
                         const SizedBox(height: 4),
                         Text(
                           DateFormat('h:mm a').format(e.startTime),
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontSize: 12,
-                            color: Colors.grey.shade700,
+                            color: Color(0xFF334155),
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -1031,9 +997,9 @@ class _TonightSpotlightSection extends StatelessWidget {
                           e.locationName,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: Colors.grey.shade600,
+                          style: const TextStyle(
+                            fontSize: 11.5,
+                            color: Color(0xFF64748B),
                           ),
                         ),
                         const Spacer(),
@@ -1212,10 +1178,10 @@ class _ConflictAssistantSection extends StatelessWidget {
   }
 }
 
-class _AiCopilotSection extends StatelessWidget {
+class _FeaturedPickSection extends StatelessWidget {
   final EventModel event;
   final String reason;
-  const _AiCopilotSection({required this.event, required this.reason});
+  const _FeaturedPickSection({required this.event, required this.reason});
 
   @override
   Widget build(BuildContext context) {
@@ -1362,6 +1328,24 @@ class _EventCardState extends ConsumerState<_EventCard> {
   Future<void> _quickRsvp() async {
     final user = ref.read(userModelProvider).asData?.value;
     if (user == null || !user.isStudent) return;
+
+    // Block new RSVPs that conflict with existing schedule (allow cancelling).
+    if (_userRsvp == null && widget.hasConflict) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(
+            'This event overlaps with another event you already RSVP\'d to. Cancel that one first to join this.',
+          ),
+          backgroundColor: Colors.orange.shade700,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      );
+      return;
+    }
+
     setState(() => _isRsvping = true);
     try {
       if (_userRsvp != null) {
@@ -1519,12 +1503,13 @@ class _EventCardState extends ConsumerState<_EventCard> {
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: const Color(0xFFEEF2F7)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.06),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 18,
+              offset: const Offset(0, 6),
             ),
           ],
         ),
@@ -1534,10 +1519,10 @@ class _EventCardState extends ConsumerState<_EventCard> {
             // Image banner
             ClipRRect(
               borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(16),
+                top: Radius.circular(20),
               ),
               child: SizedBox(
-                height: 115,
+                height: 130,
                 width: double.infinity,
                 child: Stack(
                   fit: StackFit.expand,
@@ -1690,18 +1675,23 @@ class _EventCardState extends ConsumerState<_EventCard> {
                       left: 0,
                       right: 0,
                       child: Padding(
-                        padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                        padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
                         child: Text(
                           event.title,
                           style: const TextStyle(
                             color: Colors.white,
-                            fontSize: 15,
+                            fontSize: 17,
                             fontWeight: FontWeight.w800,
+                            letterSpacing: -0.4,
                             shadows: [
-                              Shadow(color: Colors.black45, blurRadius: 4),
+                              Shadow(
+                                color: Colors.black54,
+                                blurRadius: 6,
+                                offset: Offset(0, 1),
+                              ),
                             ],
                           ),
-                          maxLines: 1,
+                          maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
@@ -1931,50 +1921,86 @@ class _EventCardState extends ConsumerState<_EventCard> {
                     children: [
                       if (!isPast && user?.isStudent == true)
                         Expanded(
-                          child: GestureDetector(
-                            onTap: _isRsvping ? null : _quickRsvp,
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 200),
-                              padding: const EdgeInsets.symmetric(vertical: 10),
-                              decoration: BoxDecoration(
-                                color: isCheckedIn
-                                    ? Colors.green.shade600
-                                    : isRsvpd
-                                    ? const Color(0xFF1565C0)
-                                    : isWaitlisted
-                                    ? Colors.orange
-                                    : const Color(0xFF1565C0),
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Center(
-                                child: _isRsvping
-                                    ? const SizedBox(
-                                        width: 16,
-                                        height: 16,
-                                        child: CircularProgressIndicator(
-                                          color: Colors.white,
-                                          strokeWidth: 2,
+                          child: Builder(builder: (context) {
+                            final blockedByConflict =
+                                widget.hasConflict && _userRsvp == null;
+                            return GestureDetector(
+                              onTap: _isRsvping ? null : _quickRsvp,
+                              child: AnimatedContainer(
+                                duration:
+                                    const Duration(milliseconds: 200),
+                                padding: const EdgeInsets.symmetric(
+                                    vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: blockedByConflict
+                                      ? const Color(0xFFE2E8F0)
+                                      : isCheckedIn
+                                          ? Colors.green.shade600
+                                          : isRsvpd
+                                              ? const Color(0xFF1565C0)
+                                              : isWaitlisted
+                                                  ? Colors.orange
+                                                  : const Color(0xFF1565C0),
+                                  borderRadius: BorderRadius.circular(12),
+                                  boxShadow: blockedByConflict
+                                      ? null
+                                      : [
+                                          BoxShadow(
+                                            color: const Color(0xFF1565C0)
+                                                .withValues(alpha: 0.22),
+                                            blurRadius: 10,
+                                            offset: const Offset(0, 3),
+                                          ),
+                                        ],
+                                ),
+                                child: Center(
+                                  child: _isRsvping
+                                      ? const SizedBox(
+                                          width: 16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(
+                                            color: Colors.white,
+                                            strokeWidth: 2,
+                                          ),
+                                        )
+                                      : Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            if (blockedByConflict) ...[
+                                              const Icon(
+                                                Icons.lock_clock_rounded,
+                                                size: 15,
+                                                color: Color(0xFF64748B),
+                                              ),
+                                              const SizedBox(width: 5),
+                                            ],
+                                            Text(
+                                              blockedByConflict
+                                                  ? 'Time conflict'
+                                                  : isCheckedIn
+                                                      ? '✓ Checked In'
+                                                      : isRsvpd
+                                                          ? "You're Going!"
+                                                          : isWaitlisted
+                                                              ? 'On Waitlist'
+                                                              : event.isFull
+                                                                  ? 'Join Waitlist'
+                                                                  : 'RSVP',
+                                              style: TextStyle(
+                                                color: blockedByConflict
+                                                    ? const Color(0xFF64748B)
+                                                    : Colors.white,
+                                                fontWeight: FontWeight.w700,
+                                                letterSpacing: -0.2,
+                                                fontSize: 13.5,
+                                              ),
+                                            ),
+                                          ],
                                         ),
-                                      )
-                                    : Text(
-                                        isCheckedIn
-                                            ? '✓ Checked In'
-                                            : isRsvpd
-                                            ? "You're Going!"
-                                            : isWaitlisted
-                                            ? 'On Waitlist'
-                                            : event.isFull
-                                            ? 'Join Waitlist'
-                                            : 'RSVP',
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.w700,
-                                          fontSize: 13,
-                                        ),
-                                      ),
+                                ),
                               ),
-                            ),
-                          ),
+                            );
+                          }),
                         ),
                       if (!isPast && user?.isStudent == true)
                         const SizedBox(width: 8),

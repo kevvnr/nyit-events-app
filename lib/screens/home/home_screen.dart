@@ -69,7 +69,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       height: 90,
                       decoration: BoxDecoration(
                         color: Colors.white
-                            .withOpacity(0.15),
+                            .withValues(alpha: 0.15),
                         borderRadius:
                             BorderRadius.circular(45),
                       ),
@@ -94,7 +94,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         color: Colors.white
-                            .withOpacity(0.8),
+                            .withValues(alpha: 0.8),
                         fontSize: 15,
                         height: 1.6,
                       ),
@@ -491,48 +491,68 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           body: screens[_currentIndex],
           floatingActionButton:
               isAdmin && _currentIndex == 0
-                  ? FloatingActionButton.extended(
-                      onPressed: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              const CreateEventScreen(),
-                        ),
+                  ? Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(28),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF1565C0)
+                                .withValues(alpha: 0.32),
+                            blurRadius: 18,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
                       ),
-                      backgroundColor:
-                          const Color(0xFF1565C0),
-                      elevation: 2,
-                      icon: const Icon(
-                          Icons.add_rounded,
-                          color: Colors.white),
-                      label: const Text(
-                        'New Event',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 14,
+                      child: FloatingActionButton.extended(
+                        onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                const CreateEventScreen(),
+                          ),
+                        ),
+                        backgroundColor:
+                            const Color(0xFF1565C0),
+                        elevation: 0,
+                        highlightElevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius:
+                              BorderRadius.circular(28),
+                        ),
+                        icon: const Icon(
+                            Icons.add_rounded,
+                            color: Colors.white),
+                        label: const Text(
+                          'New Event',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                            letterSpacing: -0.2,
+                          ),
                         ),
                       ),
                     )
                   : null,
           bottomNavigationBar: Container(
-            margin: const EdgeInsets.fromLTRB(12, 0, 12, 10),
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surface.withOpacity(0.96),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: Theme.of(context).colorScheme.outlineVariant,
-                width: 0.8,
+              color: Colors.white,
+              border: const Border(
+                top: BorderSide(
+                  color: Color(0xFFEEF2F7),
+                  width: 0.8,
+                ),
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.08),
-                  blurRadius: 16,
-                  offset: const Offset(0, 6),
+                  color: Colors.black.withValues(alpha: 0.04),
+                  blurRadius: 14,
+                  offset: const Offset(0, -3),
                 ),
               ],
             ),
             child: SafeArea(
+              top: false,
               child: SizedBox(
                 height: 64,
                 child: Row(
@@ -661,35 +681,45 @@ class _NavItem extends StatelessWidget {
             AnimatedContainer(
               duration:
                   const Duration(milliseconds: 200),
+              curve: Curves.easeOutCubic,
               padding: const EdgeInsets.symmetric(
                   horizontal: 16, vertical: 6),
               decoration: BoxDecoration(
                 color: isActive
                     ? const Color(0xFF1565C0)
-                        .withOpacity(0.1)
+                        .withValues(alpha: 0.10)
                     : Colors.transparent,
                 borderRadius: BorderRadius.circular(20),
               ),
-              child: Icon(
-                isActive ? activeIcon : icon,
-                color: isActive
-                    ? const Color(0xFF1565C0)
-                    : const Color(0xFF94A3B8),
-                size: 24,
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                transitionBuilder: (child, animation) =>
+                    ScaleTransition(
+                  scale: animation,
+                  child: child,
+                ),
+                child: Icon(
+                  isActive ? activeIcon : icon,
+                  key: ValueKey(isActive),
+                  color: isActive
+                      ? const Color(0xFF1565C0)
+                      : const Color(0xFF94A3B8),
+                  size: 24,
+                ),
               ),
             ),
-            const SizedBox(height: 2),
-            Text(
-              label,
+            const SizedBox(height: 3),
+            AnimatedDefaultTextStyle(
+              duration: const Duration(milliseconds: 200),
               style: TextStyle(
-                fontSize: 10,
-                fontWeight: isActive
-                    ? FontWeight.w700
-                    : FontWeight.w400,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                letterSpacing: -0.1,
                 color: isActive
                     ? const Color(0xFF1565C0)
                     : const Color(0xFF94A3B8),
               ),
+              child: Text(label),
             ),
           ],
         ),

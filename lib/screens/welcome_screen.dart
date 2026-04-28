@@ -7,6 +7,7 @@ class WelcomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const primary = Color(0xFF1565C0);
     return Scaffold(
       backgroundColor: Colors.white,
       body: Column(
@@ -17,21 +18,21 @@ class WelcomeScreen extends StatelessWidget {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                // Dark navy background (simulating campus hero image)
+                // Premium gradient hero
                 Container(
                   decoration: const BoxDecoration(
                     gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
                       colors: [
                         Color(0xFF1a3a6b),
-                        Color(0xFF0d2144),
+                        Color(0xFF1565C0),
                       ],
                     ),
                   ),
                 ),
 
-                // Grid pattern overlay for texture
+                // Subtle texture overlay
                 Opacity(
                   opacity: 0.05,
                   child: Container(
@@ -48,7 +49,7 @@ class WelcomeScreen extends StatelessWidget {
                 // Content overlay
                 SafeArea(
                   child: Padding(
-                    padding: const EdgeInsets.all(28),
+                    padding: const EdgeInsets.fromLTRB(28, 20, 28, 28),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -60,11 +61,18 @@ class WelcomeScreen extends StatelessWidget {
                             // NYIT badge
                             Container(
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 6),
+                                  horizontal: 12, vertical: 7),
                               decoration: BoxDecoration(
                                 color: Colors.white,
-                                borderRadius:
-                                    BorderRadius.circular(6),
+                                borderRadius: BorderRadius.circular(8),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black
+                                        .withValues(alpha: 0.06),
+                                    blurRadius: 12,
+                                    offset: const Offset(0, 3),
+                                  ),
+                                ],
                               ),
                               child: const Text(
                                 'NEW YORK\nTECH',
@@ -81,21 +89,22 @@ class WelcomeScreen extends StatelessWidget {
                             // Campus label
                             Container(
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 10, vertical: 5),
+                                  horizontal: 12, vertical: 6),
                               decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.15),
-                                borderRadius:
-                                    BorderRadius.circular(20),
+                                color:
+                                    Colors.white.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(20),
                                 border: Border.all(
                                     color: Colors.white
-                                        .withOpacity(0.3)),
+                                        .withValues(alpha: 0.3)),
                               ),
                               child: const Text(
                                 'Old Westbury',
                                 style: TextStyle(
                                   color: Colors.white,
                                   fontSize: 11,
-                                  fontWeight: FontWeight.w500,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: -0.1,
                                 ),
                               ),
                             ),
@@ -110,22 +119,24 @@ class WelcomeScreen extends StatelessWidget {
                           style: TextStyle(
                             color: Colors.white,
                             fontSize: 28,
-                            fontWeight: FontWeight.w700,
-                            height: 1.3,
+                            fontWeight: FontWeight.w800,
+                            height: 1.2,
+                            letterSpacing: -0.7,
                           ),
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 10),
                         Text(
-                          'There\'s a Place for you at New York Tech.',
+                          'There\'s a place for you at New York Tech.',
                           style: TextStyle(
-                            color: Colors.white.withOpacity(0.8),
+                            color: Colors.white.withValues(alpha: 0.85),
                             fontSize: 14,
                             height: 1.5,
+                            letterSpacing: -0.2,
                           ),
                         ),
-                        const SizedBox(height: 24),
+                        const SizedBox(height: 28),
 
-                        // Gold login button — like real NYIT app
+                        // Refined login CTA
                         Align(
                           alignment: Alignment.centerRight,
                           child: GestureDetector(
@@ -133,18 +144,26 @@ class WelcomeScreen extends StatelessWidget {
                                 context.push(AppRoutes.login),
                             child: Container(
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 28, vertical: 14),
+                                  horizontal: 30, vertical: 14),
                               decoration: BoxDecoration(
                                 color: const Color(0xFFF5A623),
-                                borderRadius:
-                                    BorderRadius.circular(6),
+                                borderRadius: BorderRadius.circular(14),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(0xFFF5A623)
+                                        .withValues(alpha: 0.35),
+                                    blurRadius: 14,
+                                    offset: const Offset(0, 5),
+                                  ),
+                                ],
                               ),
                               child: const Text(
                                 'Login',
                                 style: TextStyle(
                                   color: Color(0xFF1a3a6b),
                                   fontSize: 16,
-                                  fontWeight: FontWeight.w700,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: -0.3,
                                 ),
                               ),
                             ),
@@ -165,14 +184,14 @@ class WelcomeScreen extends StatelessWidget {
               color: Colors.white,
               child: Column(
                 children: [
-                  // Quick action icons row — like real NYIT app
+                  // Quick action pills row
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                        20, 28, 20, 0),
+                    padding:
+                        const EdgeInsets.fromLTRB(20, 30, 20, 0),
                     child: Row(
                       mainAxisAlignment:
                           MainAxisAlignment.spaceAround,
-                      children: [
+                      children: const [
                         _QuickAction(
                           icon: Icons.event_rounded,
                           label: 'Events',
@@ -194,50 +213,67 @@ class WelcomeScreen extends StatelessWidget {
                   ),
 
                   const SizedBox(height: 28),
-                  const Divider(height: 0),
-                  const SizedBox(height: 28),
+                  Container(
+                    height: 1,
+                    margin: const EdgeInsets.symmetric(horizontal: 24),
+                    color: const Color(0xFFEEF2F7),
+                  ),
+                  const SizedBox(height: 24),
 
                   // Create account button
                   Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 24),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 24),
                     child: SizedBox(
                       width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: () =>
-                            context.push(AppRoutes.register),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor:
-                              const Color(0xFF1565C0),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(
-                              vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius:
-                                BorderRadius.circular(8),
-                          ),
-                          elevation: 0,
-                          textStyle: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                          ),
+                      height: 52,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(14),
+                          boxShadow: [
+                            BoxShadow(
+                              color: primary.withValues(alpha: 0.25),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
                         ),
-                        child: const Text('Create account'),
+                        child: ElevatedButton(
+                          onPressed: () =>
+                              context.push(AppRoutes.register),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: primary,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            elevation: 0,
+                            textStyle: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: -0.3,
+                            ),
+                          ),
+                          child: const Text('Create account'),
+                        ),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
 
                   // Sign in text button
                   TextButton(
-                    onPressed: () =>
-                        context.push(AppRoutes.login),
+                    onPressed: () => context.push(AppRoutes.login),
+                    style: TextButton.styleFrom(
+                      foregroundColor: primary,
+                    ),
                     child: const Text(
                       'Already have an account? Sign in',
                       style: TextStyle(
                         color: Color(0xFF1565C0),
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
+                        letterSpacing: -0.2,
                       ),
                     ),
                   ),
@@ -250,8 +286,9 @@ class WelcomeScreen extends StatelessWidget {
                     child: Text(
                       'For NYIT students and faculty only · @nyit.edu',
                       style: TextStyle(
-                        color: Colors.grey.shade400,
+                        color: const Color(0xFF94A3B8),
                         fontSize: 11,
+                        letterSpacing: -0.1,
                       ),
                     ),
                   ),
@@ -279,14 +316,22 @@ class _QuickAction extends StatelessWidget {
     return Column(
       children: [
         Container(
-          width: 56,
-          height: 56,
+          width: 58,
+          height: 58,
           decoration: BoxDecoration(
+            color: Colors.white,
             shape: BoxShape.circle,
             border: Border.all(
-              color: const Color(0xFF1565C0),
-              width: 1.5,
+              color: const Color(0xFFEEF2F7),
+              width: 1.2,
             ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 12,
+                offset: const Offset(0, 3),
+              ),
+            ],
           ),
           child: Icon(
             icon,
@@ -294,13 +339,14 @@ class _QuickAction extends StatelessWidget {
             size: 24,
           ),
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 8),
         Text(
           label,
           style: const TextStyle(
-            fontSize: 11,
-            color: Color(0xFF1a3a6b),
-            fontWeight: FontWeight.w500,
+            fontSize: 12,
+            color: Color(0xFF0F172A),
+            fontWeight: FontWeight.w600,
+            letterSpacing: -0.2,
           ),
         ),
       ],
