@@ -53,9 +53,15 @@ class EventModel {
     this.importKey = '',
   });
 
-  bool get isFull => rsvpCount >= capacity;
+  /// Defensive accessor — Firestore can occasionally drift to a negative count
+  /// (e.g. a race between two cancellations). Always show 0 in that case.
+  int get safeRsvpCount => rsvpCount < 0 ? 0 : rsvpCount;
+  bool get isFull => safeRsvpCount >= capacity;
   bool get isCancelled => status == 'cancelled';
-  int get spotsLeft => capacity - rsvpCount;
+  int get spotsLeft {
+    final left = capacity - safeRsvpCount;
+    return left < 0 ? 0 : left;
+  }
   bool get isHappeningNow =>
       DateTime.now().isAfter(startTime) &&
       DateTime.now().isBefore(endTime);
@@ -63,7 +69,7 @@ class EventModel {
   bool get isPast => DateTime.now().isAfter(endTime);
   double get fillPercent =>
       capacity > 0
-          ? (rsvpCount / capacity).clamp(0.0, 1.0)
+          ? (safeRsvpCount / capacity).clamp(0.0, 1.0)
           : 0.0;
 
   factory EventModel.fromFirestore(DocumentSnapshot doc) {

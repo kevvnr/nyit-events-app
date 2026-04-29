@@ -142,8 +142,17 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
   }
 
   Future<void> _handleRsvp(EventModel event) async {
+    // Synchronous reentrancy guard — see feed_screen._quickRsvp for details.
+    // Without this, a fast double-tap on the RSVP button used to fire two
+    // transactions and bump the attendee count by 2.
+    if (_isLoading) return;
+    setState(() => _isLoading = true);
+
     final user = ref.read(userModelProvider).asData?.value;
-    if (user == null) return;
+    if (user == null) {
+      if (mounted) setState(() => _isLoading = false);
+      return;
+    }
 
     // Block new RSVPs that overlap with another event the user already joined.
     if (_userRsvp == null) {
@@ -180,13 +189,13 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
                 ),
               ),
             );
+            if (mounted) setState(() => _isLoading = false);
             return;
           }
         }
       } catch (_) {/* fail open if check itself errors */}
     }
 
-    setState(() => _isLoading = true);
     try {
       final status = await ref
           .read(eventServiceProvider)
@@ -375,7 +384,12 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
             const SizedBox(height: 20),
             const Text(
               'Your Check-in QR',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.5,
+                color: Color(0xFF0F172A),
+              ),
             ),
             const SizedBox(height: 4),
             Text(
@@ -674,12 +688,14 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
                             Text(
                               event.title,
                               style: const TextStyle(
-                                fontSize: 22,
+                                fontSize: 26,
                                 fontWeight: FontWeight.w800,
-                                color: Color(0xFF1E293B),
+                                letterSpacing: -0.7,
+                                height: 1.15,
+                                color: Color(0xFF0F172A),
                               ),
                             ),
-                            const SizedBox(height: 16),
+                            const SizedBox(height: 18),
 
                             // Info rows
                             _DetailRow(
@@ -1325,15 +1341,20 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
                                         : catColor,
                                     foregroundColor: Colors.white,
                                     padding: const EdgeInsets.symmetric(
-                                      vertical: 16,
+                                      vertical: 17,
                                     ),
                                     shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
+                                      borderRadius: BorderRadius.circular(16),
                                     ),
-                                    elevation: 0,
+                                    elevation: 3,
+                                    shadowColor: (isRsvpd || isWaitlisted
+                                            ? Colors.red.shade600
+                                            : catColor)
+                                        .withValues(alpha: 0.35),
                                     textStyle: const TextStyle(
                                       fontSize: 16,
                                       fontWeight: FontWeight.w700,
+                                      letterSpacing: -0.3,
                                     ),
                                   ),
                                   child: _isLoading
@@ -1388,20 +1409,27 @@ class _DetailRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: 14),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 36,
-            height: 36,
+            width: 40,
+            height: 40,
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(10),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  color.withValues(alpha: 0.18),
+                  color.withValues(alpha: 0.10),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(icon, size: 18, color: color),
+            child: Icon(icon, size: 19, color: color),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1409,18 +1437,20 @@ class _DetailRow extends StatelessWidget {
                 Text(
                   label,
                   style: const TextStyle(
-                    fontSize: 11,
+                    fontSize: 11.5,
                     color: Color(0xFF94A3B8),
-                    fontWeight: FontWeight.w500,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.1,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   value,
                   style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF1E293B),
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -0.2,
+                    color: Color(0xFF0F172A),
                   ),
                 ),
               ],

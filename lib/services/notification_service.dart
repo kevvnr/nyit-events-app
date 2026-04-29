@@ -37,6 +37,26 @@ class NotificationService {
     );
 
     await flutterLocalNotificationsPlugin.initialize(initSettings);
+
+    // Explicitly request iOS notification permissions — DarwinInitializationSettings
+    // only triggers the prompt on first init, so subsequent installs (sideloaded
+    // builds in particular) can end up silently denied. Requesting here forces
+    // the system prompt to appear if permissions haven't been granted yet.
+    final iosPlugin = flutterLocalNotificationsPlugin
+        .resolvePlatformSpecificImplementation<
+            IOSFlutterLocalNotificationsPlugin>();
+    await iosPlugin?.requestPermissions(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+
+    // Android 13+ runtime POST_NOTIFICATIONS permission
+    final androidPlugin = flutterLocalNotificationsPlugin
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
+    await androidPlugin?.requestNotificationsPermission();
+
     _initialized = true;
   }
 

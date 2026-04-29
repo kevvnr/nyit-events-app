@@ -392,6 +392,14 @@ class EventService {
     }
   }
 
+  /// Deterministic RSVP doc id so a single (event, user) pair can only ever
+  /// produce one RSVP document. This is the core fix for the "+2 on RSVP /
+  /// off-by-one on cancel" bug — previously each tap created a fresh random
+  /// doc id, so a double-tap or two devices racing produced two confirmed
+  /// docs and two `rsvpCount` increments. With a fixed id, the second write
+  /// inside the transaction sees the existing doc and aborts.
+  String _rsvpDocId(String eventId, String userId) => '${eventId}_$userId';
+
   // RSVP for event
   Future<String> rsvpEvent({
     required String eventId,
@@ -399,21 +407,6 @@ class EventService {
     required String qrToken,
   }) async {
     String resultStatus = '';
-
-    // Read before transaction
-    final existingRsvp = await _db
-        .collection(AppConfig.rsvpsCol)
-        .where('eventId', isEqualTo: eventId)
-        .where('userId', isEqualTo: userId)
-        .where(
-          'status',
-          whereIn: [AppConfig.rsvpConfirmed, AppConfig.rsvpWaitlist],
-        )
-        .get();
-
-    if (existingRsvp.docs.isNotEmpty) {
-      throw Exception('Already RSVP\'d for this event');
-    }
 
     final eventDoc = await _db
         .collection(AppConfig.eventsCol)
@@ -424,43 +417,72 @@ class EventService {
     final event = EventModel.fromFirestore(eventDoc);
     if (event.isCancelled) throw Exception('Event is cancelled');
 
+    // Pre-flight: scan for ANY active RSVP this user already has for this
+    // event — including legacy random-id docs created before the
+    // deterministic-id fix shipped. Without this scan the transaction would
+    // only know about the deterministic doc and could increment `rsvpCount`
+    // on top of a stale legacy doc, producing the visible "+2" bug.
+    final priorActive = await _db
+        .collection(AppConfig.rsvpsCol)
+        .where('eventId', isEqualTo: eventId)
+        .where('userId', isEqualTo: userId)
+        .where('status', whereIn: [
+          AppConfig.rsvpConfirmed,
+          AppConfig.rsvpWaitlist,
+        ])
+        .get();
+
+    if (priorActive.docs.isNotEmpty) {
+      throw Exception('Already RSVP\'d for this event');
+    }
+
+    final rsvpRef = _db
+        .collection(AppConfig.rsvpsCol)
+        .doc(_rsvpDocId(eventId, userId));
+    final eventRef = _db.collection(AppConfig.eventsCol).doc(eventId);
+
     await _db.runTransaction((transaction) async {
-      final freshEvent = await transaction.get(
-        _db.collection(AppConfig.eventsCol).doc(eventId),
-      );
+      // Read both refs inside the transaction so we get a consistent view.
+      final freshEvent = await transaction.get(eventRef);
+      final existing = await transaction.get(rsvpRef);
+
+      // Belt-and-suspenders: if the deterministic doc is somehow already
+      // active (e.g. another tab raced us between pre-flight and txn open),
+      // bail out before we touch the count.
+      if (existing.exists) {
+        final status = existing.data()?['status'];
+        if (status == AppConfig.rsvpConfirmed ||
+            status == AppConfig.rsvpWaitlist) {
+          throw Exception('Already RSVP\'d for this event');
+        }
+      }
+
       final currentRsvpCount = (freshEvent.data()?['rsvpCount'] ?? 0) as int;
       final capacity = (freshEvent.data()?['capacity'] ?? 0) as int;
+      final clampedCount = currentRsvpCount < 0 ? 0 : currentRsvpCount;
 
-      final rsvpRef = _db.collection(AppConfig.rsvpsCol).doc();
-      final eventRef = _db.collection(AppConfig.eventsCol).doc(eventId);
-
-      if (currentRsvpCount < capacity) {
-        transaction.set(rsvpRef, {
-          'eventId': eventId,
-          'userId': userId,
-          'status': AppConfig.rsvpConfirmed,
-          'qrToken': qrToken,
-          'checkedIn': false,
-          'checkedInAt': null,
-          'createdAt': Timestamp.now(),
-        });
-        transaction.update(eventRef, {'rsvpCount': FieldValue.increment(1)});
-        resultStatus = AppConfig.rsvpConfirmed;
-      } else {
-        transaction.set(rsvpRef, {
-          'eventId': eventId,
-          'userId': userId,
-          'status': AppConfig.rsvpWaitlist,
-          'qrToken': qrToken,
-          'checkedIn': false,
-          'checkedInAt': null,
-          'createdAt': Timestamp.now(),
-        });
-        transaction.update(eventRef, {
-          'waitlistCount': FieldValue.increment(1),
-        });
-        resultStatus = AppConfig.rsvpWaitlist;
-      }
+      // We deliberately do NOT touch rsvpCount/waitlistCount inside this
+      // transaction. The previous design wrote `currentCount + 1` here, then
+      // `recalculateEventCounts` corrected it a moment later — which is what
+      // produced the visible "1 → 2 → 1" flicker on the UI when the stored
+      // count was drifted from old data. Now the only writer of those
+      // counters is `recalculateEventCounts`, which derives the values from
+      // a live count of confirmed/waitlisted docs after the txn commits. The
+      // RSVP doc itself is the source of truth.
+      transaction.set(rsvpRef, {
+        'eventId': eventId,
+        'userId': userId,
+        'status': clampedCount < capacity
+            ? AppConfig.rsvpConfirmed
+            : AppConfig.rsvpWaitlist,
+        'qrToken': qrToken,
+        'checkedIn': false,
+        'checkedInAt': null,
+        'createdAt': Timestamp.now(),
+      });
+      resultStatus = clampedCount < capacity
+          ? AppConfig.rsvpConfirmed
+          : AppConfig.rsvpWaitlist;
     });
 
     await AnalyticsService.instance.logEvent(
@@ -484,6 +506,12 @@ class EventService {
       );
     }
 
+    // Self-heal: derive `rsvpCount` from a true count of confirmed docs and
+    // dedupe per-user duplicates. This makes the displayed number truthful
+    // even when the event row was already drifted before this build shipped
+    // — the count will snap to reality on the very next RSVP.
+    await recalculateEventCounts(eventId);
+
     return resultStatus;
   }
 
@@ -493,7 +521,10 @@ class EventService {
     required String eventId,
     required String userId,
   }) async {
-    // Read RSVP before transaction
+    // Pull EVERY confirmed RSVP this user has for the event. Normally there's
+    // one — but if older data slipped through with duplicates, we cancel them
+    // all in a single pass and decrement the count by the exact number we
+    // actually flipped, so the displayed count snaps back to truth.
     final rsvpQuery = await _db
         .collection(AppConfig.rsvpsCol)
         .where('eventId', isEqualTo: eventId)
@@ -512,23 +543,20 @@ class EventService {
         .limit(1)
         .get();
 
-    final rsvpRef = rsvpQuery.docs.first.reference;
-    final eventRef = _db.collection(AppConfig.eventsCol).doc(eventId);
-
     await _db.runTransaction((transaction) async {
-      // Cancel the RSVP
-      transaction.update(rsvpRef, {'status': AppConfig.rsvpCancelled});
-      transaction.update(eventRef, {'rsvpCount': FieldValue.increment(-1)});
+      // Cancel every duplicate confirmed RSVP for this user.
+      for (final doc in rsvpQuery.docs) {
+        transaction.update(doc.reference, {
+          'status': AppConfig.rsvpCancelled,
+        });
+      }
 
-      // Promote waitlist if someone is waiting
+      // Promote waitlist if someone is waiting (only one seat opens up
+      // semantically, regardless of how many duplicate docs we cleaned).
       if (waitlistQuery.docs.isNotEmpty) {
         final nextInLine = waitlistQuery.docs.first;
         transaction.update(nextInLine.reference, {
           'status': AppConfig.rsvpConfirmed,
-        });
-        transaction.update(eventRef, {
-          'rsvpCount': FieldValue.increment(1),
-          'waitlistCount': FieldValue.increment(-1),
         });
 
         // Notify promoted student
@@ -543,6 +571,10 @@ class EventService {
           'createdAt': Timestamp.now(),
         });
       }
+
+      // Counters are intentionally NOT written here. The post-commit
+      // `recalculateEventCounts` call below derives them from a true count
+      // of active RSVP docs, which is the only count UI ever sees.
     });
 
     await AnalyticsService.instance.logEvent(
@@ -550,6 +582,8 @@ class EventService {
       parameters: {'event_id': eventId},
     );
     await LiveActivityService.instance.end(eventId);
+    // Self-heal — same reasoning as in rsvpEvent.
+    await recalculateEventCounts(eventId);
   }
 
   // Get user's RSVP for a specific event
@@ -744,38 +778,28 @@ class EventService {
         : null;
 
     await _db.runTransaction((transaction) async {
-      final eventRef = _db.collection(AppConfig.eventsCol).doc(eventId);
       final rsvpRef = _db.collection(AppConfig.rsvpsCol).doc(rsvpId);
 
       transaction.update(rsvpRef, {'status': AppConfig.rsvpCancelled});
 
-      if (wasConfirmed) {
-        transaction.update(eventRef, {'rsvpCount': FieldValue.increment(-1)});
+      // Promote first waitlisted student if a confirmed seat opened.
+      if (wasConfirmed &&
+          waitlistQuery != null &&
+          waitlistQuery.docs.isNotEmpty) {
+        final nextInLine = waitlistQuery.docs.first;
+        transaction.update(nextInLine.reference, {
+          'status': AppConfig.rsvpConfirmed,
+        });
 
-        if (waitlistQuery != null && waitlistQuery.docs.isNotEmpty) {
-          final nextInLine = waitlistQuery.docs.first;
-          transaction.update(nextInLine.reference, {
-            'status': AppConfig.rsvpConfirmed,
-          });
-          transaction.update(eventRef, {
-            'rsvpCount': FieldValue.increment(1),
-            'waitlistCount': FieldValue.increment(-1),
-          });
-
-          final notifRef = _db.collection(AppConfig.notificationsCol).doc();
-          transaction.set(notifRef, {
-            'userId': nextInLine['userId'],
-            'type': AppConfig.notifPromoted,
-            'eventId': eventId,
-            'message':
-                'You\'ve been moved off the waitlist! You\'re now confirmed for the event.',
-            'read': false,
-            'createdAt': Timestamp.now(),
-          });
-        }
-      } else {
-        transaction.update(eventRef, {
-          'waitlistCount': FieldValue.increment(-1),
+        final notifRef = _db.collection(AppConfig.notificationsCol).doc();
+        transaction.set(notifRef, {
+          'userId': nextInLine['userId'],
+          'type': AppConfig.notifPromoted,
+          'eventId': eventId,
+          'message':
+              'You\'ve been moved off the waitlist! You\'re now confirmed for the event.',
+          'read': false,
+          'createdAt': Timestamp.now(),
         });
       }
 
@@ -789,7 +813,13 @@ class EventService {
         'read': false,
         'createdAt': Timestamp.now(),
       });
+
+      // Counters are NOT written here — the post-commit recount is the
+      // single writer of rsvpCount/waitlistCount across the whole app.
     });
+
+    // Self-heal: rewrites both counters from a true count of active docs.
+    await recalculateEventCounts(eventId);
   }
 
   // Get user's past events
@@ -828,10 +858,63 @@ class EventService {
         });
   }
 
-  // Recalculate rsvpCount and waitlistCount for an event
-  // Fixes any drift between actual RSVPs and stored counts
-  Future<void> recalculateEventCounts(String eventId) async {
+  // Recalculate rsvpCount and waitlistCount for an event AND collapse any
+  // duplicate active RSVP docs the same user might have for it. This is what
+  // heals legacy data created before the deterministic-id fix landed: if a
+  // student somehow has two confirmed docs for one event, we keep the oldest
+  // and cancel the rest, then count what remains.
+  //
+  // Returns the number of duplicate docs that were cancelled, so callers
+  // (e.g. the super-admin "Recalculate counts" button) can surface a real
+  // healed-rows number.
+  Future<int> recalculateEventCounts(String eventId) async {
     try {
+      // 1) Collapse duplicate active RSVPs.
+      final active = await _db
+          .collection(AppConfig.rsvpsCol)
+          .where('eventId', isEqualTo: eventId)
+          .where('status', whereIn: [
+            AppConfig.rsvpConfirmed,
+            AppConfig.rsvpWaitlist,
+          ])
+          .get();
+
+      // Group by userId. Within each user's docs, keep the OLDEST confirmed
+      // doc as canonical (or oldest waitlisted if no confirmed exists), and
+      // cancel everything else for that user on this event.
+      final byUser = <String, List<QueryDocumentSnapshot<Map<String, dynamic>>>>{};
+      for (final doc in active.docs) {
+        final uid = (doc.data()['userId'] ?? '').toString();
+        if (uid.isEmpty) continue;
+        byUser.putIfAbsent(uid, () => []).add(doc);
+      }
+
+      int duplicatesCancelled = 0;
+      final batch = _db.batch();
+      for (final entry in byUser.entries) {
+        if (entry.value.length <= 1) continue;
+        // Sort: confirmed before waitlist, then oldest createdAt first.
+        entry.value.sort((a, b) {
+          final aConf = a.data()['status'] == AppConfig.rsvpConfirmed ? 0 : 1;
+          final bConf = b.data()['status'] == AppConfig.rsvpConfirmed ? 0 : 1;
+          if (aConf != bConf) return aConf.compareTo(bConf);
+          final aTs = a.data()['createdAt'] as Timestamp?;
+          final bTs = b.data()['createdAt'] as Timestamp?;
+          final aMs = aTs?.millisecondsSinceEpoch ?? 0;
+          final bMs = bTs?.millisecondsSinceEpoch ?? 0;
+          return aMs.compareTo(bMs);
+        });
+        // First entry stays. Cancel the rest.
+        for (var i = 1; i < entry.value.length; i++) {
+          batch.update(entry.value[i].reference, {
+            'status': AppConfig.rsvpCancelled,
+          });
+          duplicatesCancelled++;
+        }
+      }
+      if (duplicatesCancelled > 0) await batch.commit();
+
+      // 2) Recount what's actually active now.
       final confirmed = await _db
           .collection(AppConfig.rsvpsCol)
           .where('eventId', isEqualTo: eventId)
@@ -848,21 +931,154 @@ class EventService {
         'rsvpCount': confirmed.docs.length,
         'waitlistCount': waitlist.docs.length,
       });
+      return duplicatesCancelled;
     } catch (e) {
       // non-fatal — count drift remains until next recalculation
+      return 0;
     }
   }
 
-  // Recalculate counts for ALL events
-  Future<void> recalculateAllEventCounts() async {
+  /// Collapse duplicate event documents in Firestore so the rest of the app
+  /// doesn't have to dedupe at render time forever. For each duplicate group
+  /// (same importKey OR same title+startTime+location signature) we keep the
+  /// document with the most RSVPs (older createdAt wins ties) and re-point
+  /// every RSVP, notification, pastEvent, and reaction subdoc at it before
+  /// hard-deleting the loser docs.
+  ///
+  /// Returns the number of duplicate event documents that were removed.
+  Future<int> dedupeEventDocuments() async {
+    int removed = 0;
+    try {
+      final snap = await _db.collection(AppConfig.eventsCol).get();
+      final all = snap.docs.map((d) => EventModel.fromFirestore(d)).toList();
+
+      // Build duplicate groups by importKey first, then by content signature.
+      final groups = <String, List<EventModel>>{};
+      for (final e in all) {
+        final keys = <String>[];
+        if (e.importKey.trim().isNotEmpty) {
+          keys.add('import:${e.importKey.trim()}');
+        }
+        final loc = e.locationKey.trim().isNotEmpty
+            ? e.locationKey.trim().toLowerCase()
+            : e.locationName.trim().toLowerCase();
+        keys.add('sig:${e.title.trim().toLowerCase()}|'
+            '${e.startTime.millisecondsSinceEpoch}|$loc');
+        for (final k in keys) {
+          groups.putIfAbsent(k, () => []).add(e);
+        }
+      }
+
+      // A doc may appear in multiple groups (importKey + signature) — only
+      // process it once, and skip groups that don't actually have duplicates.
+      final processed = <String>{};
+      for (final entry in groups.entries) {
+        if (entry.value.length < 2) continue;
+        final unprocessed =
+            entry.value.where((e) => !processed.contains(e.id)).toList();
+        if (unprocessed.length < 2) continue;
+
+        // Pick the canonical doc: most RSVPs, then oldest.
+        unprocessed.sort((a, b) {
+          if (a.rsvpCount != b.rsvpCount) {
+            return b.rsvpCount.compareTo(a.rsvpCount);
+          }
+          return a.createdAt.compareTo(b.createdAt);
+        });
+        final canonical = unprocessed.first;
+        final losers = unprocessed.skip(1).toList();
+
+        for (final loser in losers) {
+          if (processed.contains(loser.id)) continue;
+          await _mergeEventInto(loser: loser.id, canonical: canonical.id);
+          processed.add(loser.id);
+          removed++;
+        }
+        processed.add(canonical.id);
+      }
+
+      // Final RSVP recount on canonical docs that absorbed extras.
+      for (final id in processed) {
+        try {
+          await recalculateEventCounts(id);
+        } catch (_) {/* non-fatal */}
+      }
+    } catch (_) {
+      // non-fatal
+    }
+    return removed;
+  }
+
+  /// Re-point every dependent record from [loser] onto [canonical], then hard
+  /// delete the loser event document.
+  Future<void> _mergeEventInto({
+    required String loser,
+    required String canonical,
+  }) async {
+    // Move RSVPs. Use a deterministic merge per user — if the canonical event
+    // already has an active RSVP for this user, cancel the loser-side doc to
+    // avoid re-creating the "+2" duplicate we just spent so much effort
+    // killing.
+    final loserRsvps = await _db
+        .collection(AppConfig.rsvpsCol)
+        .where('eventId', isEqualTo: loser)
+        .get();
+    for (final doc in loserRsvps.docs) {
+      final uid = (doc.data()['userId'] ?? '').toString();
+      if (uid.isEmpty) continue;
+      final existing = await _db
+          .collection(AppConfig.rsvpsCol)
+          .where('eventId', isEqualTo: canonical)
+          .where('userId', isEqualTo: uid)
+          .limit(1)
+          .get();
+      if (existing.docs.isNotEmpty) {
+        // Canonical already has an RSVP for this user — drop the loser copy.
+        await doc.reference.delete();
+      } else {
+        await doc.reference.update({'eventId': canonical});
+      }
+    }
+
+    // Re-point in-app notifications.
+    final loserNotifs = await _db
+        .collection(AppConfig.notificationsCol)
+        .where('eventId', isEqualTo: loser)
+        .get();
+    for (final doc in loserNotifs.docs) {
+      await doc.reference.update({'eventId': canonical});
+    }
+
+    // pastEvents collection group lives under each user — re-point those too.
+    try {
+      final past = await _db
+          .collectionGroup('pastEvents')
+          .where('eventId', isEqualTo: loser)
+          .get();
+      for (final doc in past.docs) {
+        await doc.reference.update({'eventId': canonical});
+      }
+    } catch (_) {/* non-fatal */}
+
+    // Drop the loser event doc and tell Algolia to forget about it.
+    await _db.collection(AppConfig.eventsCol).doc(loser).delete();
+    try {
+      await AlgoliaService.instance.deleteEvent(loser);
+    } catch (_) {/* non-fatal */}
+  }
+
+  // Recalculate counts for ALL events. Returns total duplicates healed.
+  Future<int> recalculateAllEventCounts() async {
+    int totalHealed = 0;
     try {
       final events = await _db.collection(AppConfig.eventsCol).get();
       for (final event in events.docs) {
-        await recalculateEventCounts(event.id);
+        totalHealed += await recalculateEventCounts(event.id);
       }
     } catch (e) {
       // non-fatal
     }
+    return totalHealed;
   }
 
   // Archive a single past event

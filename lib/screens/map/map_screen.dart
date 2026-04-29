@@ -10,6 +10,7 @@ import '../../config/mapbox_config.dart';
 import '../../providers/event_provider.dart';
 import '../../models/event_model.dart';
 import '../../services/walking_route_service.dart';
+import '../../utils/event_dedup.dart';
 import '../../utils/map_directions.dart';
 import '../feed/event_detail_screen.dart';
 
@@ -299,7 +300,10 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         loading: () =>
             const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Error: $e')),
-        data: (allEvents) {
+        data: (rawAllEvents) {
+          // Same dedup contract as the feed so counts stay consistent across
+          // tabs — one event = one marker/card everywhere.
+          final allEvents = dedupeEvents(rawAllEvents);
           final today = DateTime(now.year, now.month, now.day);
           final tomorrow = today.add(const Duration(days: 1));
           final weekEnd = today.add(const Duration(days: 7));
@@ -318,15 +322,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           }).toList()
             ..sort((a, b) => a.startTime.compareTo(b.startTime));
 
-          final filteredEvents = _filter == 'All'
-              ? events
-              : _filter == 'Now'
-                  ? events
-                      .where((e) => e.isHappeningNow)
-                      .toList()
-                  : events
-                      .where((e) => e.isUpcoming)
-                      .toList();
+          final filteredEvents = _filter == 'Now'
+              ? events.where((e) => e.isHappeningNow).toList()
+              : events;
 
           final visibleBuildings = _showParking
               ? _buildings
@@ -370,55 +368,47 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                         ),
                         const SizedBox(height: 12),
 
-                        // Filter chips (horizontally scrollable, parking inline)
-                        SizedBox(
-                          height: 32,
-                          child: ListView(
-                            scrollDirection: Axis.horizontal,
-                            physics: const BouncingScrollPhysics(),
-                            children: [
-                              _FilterChip(
+                        // Filter chips — Today, Live Now, Parking sit on a
+                        // single row with even spacing. Each event filter
+                        // expands to share the row equally so the pair always
+                        // looks balanced; Parking is a compact toggle that
+                        // hugs the right edge so it reads as an option, not
+                        // a fourth filter.
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _FilterChip(
                                 label: 'Today',
                                 count: events.length,
                                 selected: _filter == 'All',
                                 color: const Color(0xFF1565C0),
-                                onTap: () => setState(
-                                    () => _filter = 'All'),
+                                onTap: () =>
+                                    setState(() => _filter = 'All'),
                               ),
-                              const SizedBox(width: 8),
-                              _FilterChip(
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: _FilterChip(
                                 label: 'Live Now',
                                 count: events
-                                    .where(
-                                        (e) => e.isHappeningNow)
+                                    .where((e) => e.isHappeningNow)
                                     .length,
                                 selected: _filter == 'Now',
                                 color: Colors.green.shade700,
-                                onTap: () => setState(
-                                    () => _filter = 'Now'),
+                                onTap: () =>
+                                    setState(() => _filter = 'Now'),
                               ),
-                              const SizedBox(width: 8),
-                              _FilterChip(
-                                label: 'Upcoming',
-                                count: events
-                                    .where((e) => e.isUpcoming)
-                                    .length,
-                                selected: _filter == 'Upcoming',
-                                color: Colors.orange.shade700,
-                                onTap: () => setState(() =>
-                                    _filter = 'Upcoming'),
-                              ),
-                              const SizedBox(width: 8),
-                              _FilterChip(
-                                label: 'Parking',
-                                icon: Icons.local_parking_rounded,
-                                selected: _showParking,
-                                color: const Color(0xFF455A64),
-                                onTap: () => setState(() =>
-                                    _showParking = !_showParking),
-                              ),
-                            ],
-                          ),
+                            ),
+                            const SizedBox(width: 8),
+                            _FilterChip(
+                              label: 'Parking',
+                              icon: Icons.local_parking_rounded,
+                              selected: _showParking,
+                              color: const Color(0xFF455A64),
+                              onTap: () => setState(
+                                  () => _showParking = !_showParking),
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 14),
                       ],
@@ -851,6 +841,7 @@ class _FilterChip extends StatelessWidget {
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             if (icon != null) ...[
               Icon(icon, size: 14, color: fg),

@@ -356,14 +356,20 @@ class _StatItem extends StatelessWidget {
           value,
           style: const TextStyle(
             color: Colors.white,
-            fontSize: 20,
+            fontSize: 22,
             fontWeight: FontWeight.w800,
+            letterSpacing: -0.5,
           ),
         ),
-        const SizedBox(height: 2),
+        const SizedBox(height: 3),
         Text(
           label,
-          style: const TextStyle(color: Colors.white70, fontSize: 11),
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.78),
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.2,
+          ),
         ),
       ],
     );
@@ -388,16 +394,16 @@ class _UpcomingCalendarCard extends StatelessWidget {
     final nextEvent = upcoming.first['eventDate'] as DateTime?;
 
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFEEF2F7)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -503,25 +509,41 @@ class _UpcomingCard extends StatelessWidget {
         startsIn != null && startsIn.inMinutes >= 0 && startsIn.inMinutes <= 90;
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: isWaitlist ? Colors.orange.shade200 : const Color(0xFFE2E8F0),
-          width: 0.5,
+          color: isWaitlist ? Colors.orange.shade200 : const Color(0xFFEEF2F7),
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: Row(
         children: [
           Container(
-            width: 44,
-            height: 44,
+            width: 46,
+            height: 46,
             decoration: BoxDecoration(
-              color: isWaitlist
-                  ? Colors.orange.withOpacity(0.1)
-                  : AppConfig.primaryColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: isWaitlist
+                    ? [
+                        Colors.orange.withValues(alpha: 0.18),
+                        Colors.orange.withValues(alpha: 0.10),
+                      ]
+                    : [
+                        AppConfig.primaryColor.withValues(alpha: 0.18),
+                        AppConfig.primaryColor.withValues(alpha: 0.10),
+                      ],
+              ),
+              borderRadius: BorderRadius.circular(13),
             ),
             child: Icon(
               isWaitlist
@@ -541,8 +563,10 @@ class _UpcomingCard extends StatelessWidget {
                 Text(
                   rsvp['eventTitle'] ?? 'Event',
                   style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -0.2,
+                    color: Color(0xFF0F172A),
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -636,7 +660,7 @@ class _PastCard extends StatelessWidget {
     }
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
         gradient: checkedIn
             ? LinearGradient(
@@ -645,19 +669,18 @@ class _PastCard extends StatelessWidget {
                 end: Alignment.bottomRight,
               )
             : const LinearGradient(
-                colors: [Color(0xFFF8FAFC), Color(0xFFFFFFFF)],
+                colors: [Color(0xFFFAFCFF), Color(0xFFFFFFFF)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: checkedIn ? Colors.green.shade200 : const Color(0xFFE2E8F0),
-          width: 0.5,
+          color: checkedIn ? Colors.green.shade200 : const Color(0xFFEEF2F7),
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 10,
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 12,
             offset: const Offset(0, 3),
           ),
         ],

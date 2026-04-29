@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../config/app_config.dart';
 import '../../data/campusgroups_events.dart';
 import '../../models/event_model.dart';
 import '../../services/admin_user_service.dart';
 import '../../services/algolia_service.dart';
 import '../../services/event_service.dart';
+import '../../utils/event_dedup.dart';
 
 class SuperAdminDashboard extends StatefulWidget {
   const SuperAdminDashboard({super.key});
@@ -51,6 +53,53 @@ class _SuperAdminDashboardState
       }
     });
     _loadStats();
+    // One-time auto-heal on first open after the count-bug fix shipped. We
+    // record a "ran" flag in SharedPreferences so the cleanup pass only
+    // happens once per device — afterwards the deterministic-id RSVP fix
+    // keeps counts honest by itself.
+    _maybeAutoHealCounts();
+  }
+
+  static const _prefAutoHealKey = 'rsvp_count_autoheal_v2_done';
+
+  Future<void> _maybeAutoHealCounts() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (prefs.getBool(_prefAutoHealKey) == true) return;
+      // v2 also collapses duplicate event documents (same importKey or same
+      // title+startTime+location). The feed/admin/dashboard counts only line
+      // up after the Firestore-side cleanup runs.
+      final removedDocs = await EventService().dedupeEventDocuments();
+      final healedRsvps =
+          await EventService().recalculateAllEventCounts();
+      await prefs.setBool(_prefAutoHealKey, true);
+      if (!mounted) return;
+      await _loadStats();
+      final messages = <String>[];
+      if (removedDocs > 0) {
+        messages.add(
+          'Removed $removedDocs duplicate event'
+          '${removedDocs == 1 ? '' : 's'}',
+        );
+      }
+      if (healedRsvps > 0) {
+        messages.add(
+          'Healed $healedRsvps duplicate RSVP'
+          '${healedRsvps == 1 ? '' : 's'}',
+        );
+      }
+      if (messages.isNotEmpty && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${messages.join(" · ")} on first sign-in.'),
+            backgroundColor: Colors.green.shade700,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (_) {
+      // non-fatal — manual "Recalculate counts" button is always available
+    }
   }
 
   @override
@@ -81,7 +130,16 @@ Future<void> _loadStats() async {
           .get(),
     ]);
 
-    final events = results[0].docs;
+    // Dedupe events the same way the rest of the app does so the dashboard
+    // counts ("56 events") match what students see in the feed and what
+    // admins see in the manage screen. Without this, accidental duplicate
+    // Firestore docs would inflate every analytics number.
+    final rawEvents = results[0].docs
+        .map((d) => EventModel.fromFirestore(d))
+        .toList();
+    final dedupedModels = dedupeEvents(rawEvents);
+    final keptIds = dedupedModels.map((e) => e.id).toSet();
+    final events = results[0].docs.where((d) => keptIds.contains(d.id)).toList();
     // Exclude cancelled events so RSVPs/check-ins don't count against them
     final publishedIds = events
         .where((e) => e.data()['isCancelled'] != true)
@@ -120,7 +178,7 @@ Future<void> _loadStats() async {
     }
 
     final nowTs = DateTime.now();
-    final activeEventCount = results[0].docs.where((doc) {
+    final activeEventCount = events.where((doc) {
       final data = doc.data();
       if (data['isCancelled'] == true) return false;
       final endTs = data['endTime'];
@@ -238,12 +296,28 @@ Future<void> _loadStats() async {
 
     setState(() => _isRecalculating = true);
     try {
-      await EventService().recalculateAllEventCounts();
+      // Order matters: dedupe event docs first so the recount pass below
+      // sees the merged RSVP totals on canonical events.
+      final removedDocs = await EventService().dedupeEventDocuments();
+      final healed = await EventService().recalculateAllEventCounts();
       await _loadStats();
       if (mounted) {
+        final parts = <String>[];
+        if (removedDocs > 0) {
+          parts.add('removed $removedDocs duplicate event'
+              '${removedDocs == 1 ? '' : 's'}');
+        }
+        if (healed > 0) {
+          parts.add('healed $healed duplicate RSVP'
+              '${healed == 1 ? '' : 's'}');
+        }
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('All counts recalculated!'),
+          SnackBar(
+            content: Text(
+              parts.isEmpty
+                  ? 'All counts recalculated — everything was already in sync.'
+                  : 'All counts recalculated · ${parts.join(" · ")}.',
+            ),
             backgroundColor: Colors.green,
           ),
         );

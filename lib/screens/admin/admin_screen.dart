@@ -7,6 +7,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/event_provider.dart';
 import '../../models/event_model.dart';
 import '../../services/event_service.dart';
+import '../../utils/event_dedup.dart';
 import 'qr_scanner_screen.dart';
 import 'attendee_list_screen.dart';
 import 'edit_event_screen.dart';
@@ -28,22 +29,22 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
   @override
   void initState() {
     super.initState();
-    Future.microtask(
-      () => ref.read(eventsNotifierProvider.notifier).loadEvents(),
-    );
   }
 
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(userModelProvider).asData?.value;
-    final eventsState = ref.watch(eventsNotifierProvider);
+    // Use the live Firestore stream so RSVP counts, cancellations, edits, and
+    // newly-created events propagate to the admin view in real time without
+    // requiring a manual refresh.
+    final eventsState = ref.watch(eventsStreamProvider);
     final isSuperAdmin = user?.isSuperAdmin ?? false;
     final now = DateTime.now();
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: RefreshIndicator(
-        onRefresh: () => ref.read(eventsNotifierProvider.notifier).loadEvents(),
+        onRefresh: () async => ref.refresh(eventsStreamProvider),
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
@@ -128,73 +129,77 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
                       Text(
                         _showPastEvents
                             ? 'Past events view'
-                            : 'Hi ${user?.name.split(' ').first ?? ''} · Admin controls',
+                            : 'Hi ${user?.name.split(' ').first ?? ''}',
                         style: TextStyle(
                           color: Colors.white.withOpacity(0.75),
                           fontSize: 13,
                         ),
                       ),
-                      // Superadmin quick actions — Wrap so every chip stays on-screen.
+                      // Superadmin quick actions — equal-width tiles in a 2x2
+                      // grid so Announce / Analytics / Approvals / Room limits
+                      // all read as the same kind of control. Previously they
+                      // were a Wrap and the labels of different lengths made
+                      // the row look ragged.
                       if (isSuperAdmin) ...[
                         const SizedBox(height: 12),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          alignment: WrapAlignment.start,
+                        Row(
                           children: [
-                            _HeaderAction(
-                              icon: Icons.campaign_rounded,
-                              label: 'Announce',
-                              onTap: () => Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const AnnouncementScreen(),
+                            Expanded(
+                              child: _HeaderAction(
+                                icon: Icons.campaign_rounded,
+                                label: 'Announce',
+                                onTap: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const AnnouncementScreen(),
+                                  ),
                                 ),
                               ),
                             ),
-                            _HeaderAction(
-                              icon: Icons.analytics_rounded,
-                              label: 'Analytics',
-                              onTap: () => Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const SuperAdminDashboard(),
-                                ),
-                              ),
-                            ),
-                            _HeaderAction(
-                              icon: Icons.person_add_rounded,
-                              label: 'Approvals',
-                              onTap: () => Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const TeacherApprovalScreen(),
-                                ),
-                              ),
-                            ),
-                            _HeaderAction(
-                              icon: Icons.meeting_room_rounded,
-                              label: 'Room limits',
-                              onTap: () => Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const RoomCapacityScreen(),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: _HeaderAction(
+                                icon: Icons.analytics_rounded,
+                                label: 'Analytics',
+                                onTap: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const SuperAdminDashboard(),
+                                  ),
                                 ),
                               ),
                             ),
                           ],
                         ),
-                      ] else ...[
-                        const SizedBox(height: 10),
-                        _HeaderAction(
-                          icon: Icons.meeting_room_rounded,
-                          label: 'Room limits',
-                          onTap: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const RoomCapacityScreen(),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _HeaderAction(
+                                icon: Icons.person_add_rounded,
+                                label: 'Approvals',
+                                onTap: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const TeacherApprovalScreen(),
+                                  ),
+                                ),
+                              ),
                             ),
-                          ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: _HeaderAction(
+                                icon: Icons.meeting_room_rounded,
+                                label: 'Room limits',
+                                onTap: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const RoomCapacityScreen(),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ],
@@ -213,7 +218,11 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
               ),
               error: (e, _) =>
                   const Center(child: Text('Something went wrong')),
-              data: (events) {
+              data: (rawEvents) {
+                // Dedup so the admin event list and the stat pills count
+                // each real event once, even if Firestore happens to hold
+                // duplicate docs (e.g. from re-imports).
+                final events = dedupeEvents(rawEvents);
                 // Filter by host and active/past
                 final allMyEvents = isSuperAdmin
                     ? events.where((e) => !e.isCancelled).toList()
@@ -400,9 +409,7 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
                             index: entry.key,
                             isSuperAdmin: isSuperAdmin,
                             isPast: _showPastEvents,
-                            onRefresh: () => ref
-                                .read(eventsNotifierProvider.notifier)
-                                .loadEvents(),
+                            onRefresh: () => ref.refresh(eventsStreamProvider),
                           ),
                         ),
                     ],
@@ -431,44 +438,57 @@ class _HeaderAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.18),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withOpacity(0.35)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.06),
-              blurRadius: 10,
-              offset: const Offset(0, 3),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 20,
-              height: 20,
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.18),
-                borderRadius: BorderRadius.circular(10),
+    // Stretch to whatever width the parent provides (Expanded in the admin
+    // header) so a row of these tiles always reads as evenly balanced.
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Ink(
+          padding:
+              const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.18),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.white.withOpacity(0.35)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.06),
+                blurRadius: 10,
+                offset: const Offset(0, 3),
               ),
-              child: Icon(icon, color: Colors.white, size: 12),
-            ),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
+            ],
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.max,
+            children: [
+              Container(
+                width: 26,
+                height: 26,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.22),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, color: Colors.white, size: 15),
               ),
-            ),
-          ],
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -0.1,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -832,31 +852,6 @@ class _AdminEventCard extends ConsumerWidget {
                     ],
                   ),
                 ],
-                if (_canPermanentDelete(ref)) ...[
-                  const SizedBox(height: 10),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: () => _confirmPermanentDelete(context, ref),
-                      icon: Icon(
-                        Icons.delete_forever_rounded,
-                        color: Colors.red.shade700,
-                        size: 18,
-                      ),
-                      label: Text(
-                        'Delete everywhere',
-                        style: TextStyle(
-                          color: Colors.red.shade700,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      style: OutlinedButton.styleFrom(
-                        side: BorderSide(color: Colors.red.shade200),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                    ),
-                  ),
-                ],
                 if (!isPast && event.rsvpCount > 0) ...[
                   const SizedBox(height: 10),
                   GestureDetector(
@@ -1041,61 +1036,6 @@ class _AdminEventCard extends ConsumerWidget {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Error saving summary: $e')));
-      }
-    }
-  }
-
-  bool _canPermanentDelete(WidgetRef ref) {
-    final me = ref.read(userModelProvider).asData?.value;
-    if (me == null) return false;
-    if (isSuperAdmin) return true;
-    return me.uid == event.hostId;
-  }
-
-  Future<void> _confirmPermanentDelete(
-    BuildContext context,
-    WidgetRef ref,
-  ) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete everywhere?'),
-        content: Text(
-          'Permanently remove "${event.title}", all RSVPs, in-app notifications, '
-          'and attendance history for this event. This cannot be undone.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Keep'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(
-              'Delete',
-              style: TextStyle(color: Colors.red.shade700),
-            ),
-          ),
-        ],
-      ),
-    );
-    if (confirm != true) return;
-    try {
-      await EventService().permanentlyDeleteEvent(event.id);
-      onRefresh();
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Event removed everywhere'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Delete failed: $e')),
-        );
       }
     }
   }

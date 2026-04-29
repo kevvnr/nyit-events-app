@@ -13,6 +13,7 @@ import '../../services/event_service.dart';
 import '../../services/analytics_service.dart';
 import '../../services/experiment_service.dart';
 import '../../services/algolia_service.dart';
+import '../../utils/event_dedup.dart';
 import '../../services/live_activity_service.dart';
 import '../../services/siri_shortcuts_service.dart';
 import 'event_detail_screen.dart';
@@ -205,13 +206,15 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
       return matchesCategory && !event.isCancelled && notEnded;
     }).toList();
 
+    // Strict chronological order. Pinned events still bubble to the very top
+    // (admins use this to surface a single hero event), and live events stay
+    // ahead of upcoming ones — but everything else is start-time ascending so
+    // the next event always appears next, regardless of category affinity.
     filtered.sort((a, b) {
       if (a.isPinned && !b.isPinned) return -1;
       if (!a.isPinned && b.isPinned) return 1;
       if (a.isHappeningNow && !b.isHappeningNow) return -1;
       if (!a.isHappeningNow && b.isHappeningNow) return 1;
-      final scoreCmp = _discoveryScore(b).compareTo(_discoveryScore(a));
-      if (scoreCmp != 0) return scoreCmp;
       return a.startTime.compareTo(b.startTime);
     });
 
@@ -543,22 +546,14 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
                   ),
                 ),
                 data: (rawEvents) {
-                  // Deduplicate at the source. We dedupe by id AND by content
-                  // signature (title + startTime + location) so that accidental
-                  // duplicate Firestore documents — distinct ids but identical
-                  // event data — only render once. First occurrence wins.
-                  final seenIds = <String>{};
-                  final seenSigs = <String>{};
-                  final events = <EventModel>[
-                    for (final e in rawEvents)
-                      if (seenIds.add(e.id) &&
-                          seenSigs.add(
-                            '${e.title.trim().toLowerCase()}|'
-                            '${e.startTime.millisecondsSinceEpoch}|'
-                            '${e.locationName.trim().toLowerCase()}',
-                          ))
-                        e,
-                  ];
+                  // Centralized dedup: collapses duplicate Firestore docs
+                  // (id), re-imports of the same external event (importKey),
+                  // and content-equivalent duplicates that share an exact
+                  // title + startTime + location signature. Two genuinely
+                  // distinct sessions of the same class will have different
+                  // start times so they survive; two copies of the same
+                  // event don't.
+                  final events = dedupeEvents(rawEvents);
                   final filtered = _filterEvents(events);
                   final discovery =
                       _feedSegment == 1 && _isDiscoveryContext;
@@ -629,11 +624,13 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
                           .toList();
                   final showConflictAssistant = conflictSuggestions.isNotEmpty;
 
+                  // When no sections are shown, nothing is claimed, so the
+                  // main list is the full filtered list. In For-You mode,
+                  // claimed events are surfaced in their section so we strip
+                  // them from the main list to avoid showing them twice.
                   final mainList = filtered
                       .where((e) => !claimed.contains(e.id))
                       .toList();
-                  // When no sections are shown, nothing is claimed, so the
-                  // main list is the full filtered list (unchanged behavior).
                   // Smart Picks rendering still expects up to 3 events:
                   final recommended = picks;
                   if (filtered.isEmpty) {
@@ -678,7 +675,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
                           MediaQuery.paddingOf(context).bottom + 88,
                         ),
                         itemCount:
-                            filtered.length +
+                            mainList.length +
                             (showTonight ? 1 : 0) +
                             (showPicks ? 1 : 0) +
                             (showFeaturedPick ? 1 : 0) +
@@ -729,9 +726,9 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
                           return Padding(
                             padding: const EdgeInsets.only(bottom: 12),
                             child: _EventCard(
-                              event: filtered[effectiveIndex],
+                              event: mainList[effectiveIndex],
                               hasConflict: _conflictingEventIds.contains(
-                                filtered[effectiveIndex].id,
+                                mainList[effectiveIndex].id,
                               ),
                             ),
                           );
@@ -1004,7 +1001,7 @@ class _TonightSpotlightSection extends StatelessWidget {
                         ),
                         const Spacer(),
                         Text(
-                          '${e.rsvpCount}/${e.capacity} going',
+                          '${e.safeRsvpCount}/${e.capacity} going',
                           style: const TextStyle(
                             fontSize: 11,
                             color: Color(0xFF1565C0),
@@ -1326,8 +1323,20 @@ class _EventCardState extends ConsumerState<_EventCard> {
   }
 
   Future<void> _quickRsvp() async {
+    // Synchronous reentrancy guard. The button's onTap already checks
+    // `_isRsvping`, but earlier we only flipped that flag AFTER the conflict
+    // SnackBar and the first await. A double-tap could therefore enter this
+    // method twice and fire two RSVP transactions, which is what produced
+    // "+2" attendee counts. Flipping the flag here, before any await, makes
+    // the second invocation a no-op.
+    if (_isRsvping) return;
+    setState(() => _isRsvping = true);
+
     final user = ref.read(userModelProvider).asData?.value;
-    if (user == null || !user.isStudent) return;
+    if (user == null || !user.isStudent) {
+      if (mounted) setState(() => _isRsvping = false);
+      return;
+    }
 
     // Block new RSVPs that conflict with existing schedule (allow cancelling).
     if (_userRsvp == null && widget.hasConflict) {
@@ -1343,10 +1352,10 @@ class _EventCardState extends ConsumerState<_EventCard> {
           ),
         ),
       );
+      if (mounted) setState(() => _isRsvping = false);
       return;
     }
 
-    setState(() => _isRsvping = true);
     try {
       if (_userRsvp != null) {
         await ref
@@ -1893,7 +1902,7 @@ class _EventCardState extends ConsumerState<_EventCard> {
                           ),
                         ),
                         Text(
-                          '${event.rsvpCount}/${event.capacity}',
+                          '${event.safeRsvpCount}/${event.capacity}',
                           style: TextStyle(
                             fontSize: 11,
                             color: Colors.grey.shade500,
@@ -2023,8 +2032,8 @@ class _EventCardState extends ConsumerState<_EventCard> {
                             const SizedBox(width: 4),
                             Text(
                               isPast
-                                  ? '${event.rsvpCount} attended'
-                                  : '${event.rsvpCount} going',
+                                  ? '${event.safeRsvpCount} attended'
+                                  : '${event.safeRsvpCount} going',
                               style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,

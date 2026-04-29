@@ -620,11 +620,18 @@
   setInterval(tick, 1000); tick();
 
   /* ── Events snapshot ─────────────────────── */
+  // Mirror the mobile app feed exactly: include both `published` and
+  // `archived` events, dedupe at THREE levels (Firestore id, importKey,
+  // and content signature: title+startTime+location), and prune past events
+  // older than 7 days so the dashboard stays focused on what's actionable.
+  // The triple-dedup keeps "56 events on the app" === "56 events here".
   onSnapshot(
-    query(collection(db, 'events'), where('status', '==', 'published')),
+    query(collection(db, 'events'), where('status', 'in', ['published', 'archived'])),
     snap => {
       const now = new Date();
-      allEvents = snap.docs.map(d => {
+      const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+      const mapped = snap.docs.map(d => {
         const data  = d.data();
         const start = data.startTime?.toDate?.() ?? null;
         const end   = data.endTime?.toDate?.()   ?? null;
@@ -632,6 +639,52 @@
         const past  = end && end <= now;
         return { id: d.id, data, start, end, live, upcoming: !live && !past, past };
       });
+
+      // Pick the "best" record within a duplicate group: highest rsvpCount
+      // wins, oldest createdAt as tiebreaker. Same contract as the mobile
+      // dedup helper.
+      const isBetter = (cand, cur) => {
+        const ca = cand.data.rsvpCount || 0;
+        const cu = cur.data.rsvpCount  || 0;
+        if (ca !== cu) return ca > cu;
+        const cat = cand.data.createdAt?.toMillis?.() ?? 0;
+        const cut = cur.data.createdAt?.toMillis?.()  ?? 0;
+        return cat < cut;
+      };
+
+      // Pass 1: id (Firestore guarantees uniqueness, but defend anyway).
+      const byId = new Map();
+      for (const e of mapped) {
+        const cur = byId.get(e.id);
+        if (!cur || isBetter(e, cur)) byId.set(e.id, e);
+      }
+
+      // Pass 2: importKey collapse.
+      const byImport = new Map();
+      const noImport = [];
+      for (const e of byId.values()) {
+        const key = (e.data.importKey || '').trim();
+        if (!key) { noImport.push(e); continue; }
+        const cur = byImport.get(key);
+        if (!cur || isBetter(e, cur)) byImport.set(key, e);
+      }
+
+      // Pass 3: content signature collapse (title+startTime+location).
+      const bySig = new Map();
+      const candidates = [...byImport.values(), ...noImport];
+      for (const e of candidates) {
+        const loc = ((e.data.locationKey || '').trim() ||
+                     (e.data.locationName || '').trim()).toLowerCase();
+        const sig = `${(e.data.title || '').trim().toLowerCase()}|`
+                  + `${e.start ? e.start.getTime() : 0}|${loc}`;
+        const cur = bySig.get(sig);
+        if (!cur || isBetter(e, cur)) bySig.set(sig, e);
+      }
+
+      allEvents = [...bySig.values()]
+        // Keep past events only for the last 7 days; older ones drop off the
+        // dashboard so admins aren't scrolling through stale history.
+        .filter(e => !e.past || (e.end && e.end >= sevenDaysAgo));
       updateCounts();
       if (activeTab) renderDrawer();
     },
@@ -717,7 +770,13 @@
     if (unsubWait)  { unsubWait();  unsubWait  = null; }
     prevInIds = new Set();
     currentId = id;
-    if (activeTab) renderDrawer();
+    // Collapse the Live/Upcoming/Past drawer so the selected event's
+    // dashboard takes focus (single-open accordion behavior).
+    if (activeTab) {
+      activeTab = null;
+      document.getElementById('drawer').classList.remove('open');
+      setTabStyle(null);
+    }
 
     const panels = ['ev-header','ev-stats','ev-prog','ev-cols'];
 

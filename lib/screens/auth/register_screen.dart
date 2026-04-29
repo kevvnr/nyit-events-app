@@ -146,32 +146,32 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
               fontSize: 15, color: Color(0xFF1a3a6b)),
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: TextStyle(
-                color: Colors.grey.shade400, fontSize: 14),
+            hintStyle: const TextStyle(
+                color: Color(0xFF94A3B8), fontSize: 14),
             contentPadding: const EdgeInsets.symmetric(
-                horizontal: 14, vertical: 14),
+                horizontal: 16, vertical: 16),
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(14),
               borderSide:
-                  BorderSide(color: Colors.grey.shade400),
+                  const BorderSide(color: Color(0xFFE2E8F0)),
             ),
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(14),
               borderSide:
-                  BorderSide(color: Colors.grey.shade400),
+                  const BorderSide(color: Color(0xFFE2E8F0)),
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(14),
               borderSide: const BorderSide(
-                  color: Color(0xFF1565C0), width: 2),
+                  color: Color(0xFF1565C0), width: 1.6),
             ),
             errorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(14),
               borderSide:
                   const BorderSide(color: Colors.red, width: 1),
             ),
             filled: true,
-            fillColor: Colors.white,
+            fillColor: const Color(0xFFF8FAFC),
             suffixIcon: showToggle
                 ? IconButton(
                     icon: Icon(
@@ -247,9 +247,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     const Text(
                       'Create Account',
                       style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF1a3a6b),
+                        fontSize: 28,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.7,
+                        color: Color(0xFF0F172A),
                       ),
                     ),
                     const SizedBox(height: 6),
@@ -413,15 +414,18 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                               const Color(0xFF1565C0),
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(
-                              vertical: 16),
+                              vertical: 17),
                           shape: RoundedRectangleBorder(
                             borderRadius:
-                                BorderRadius.circular(6),
+                                BorderRadius.circular(14),
                           ),
-                          elevation: 0,
+                          elevation: 3,
+                          shadowColor: const Color(0xFF1565C0)
+                              .withValues(alpha: 0.32),
                           textStyle: const TextStyle(
                             fontSize: 16,
-                            fontWeight: FontWeight.w600,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: -0.3,
                           ),
                         ),
                         child: _isLoading

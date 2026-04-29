@@ -124,7 +124,9 @@ class _CreateEventScreenState
       _selectedLocationKey = loc.id;
       final cap = int.tryParse(_capacityController.text.trim());
       final maxCap = _maxFor(loc);
-      if (cap == null || cap > maxCap) {
+      // Only auto-fill / clamp capacity when room caps actually apply.
+      // Teachers and super admins keep whatever capacity they typed.
+      if (_enforceRoomCaps && (cap == null || cap > maxCap)) {
         _capacityController.text = '$maxCap';
       }
     });
@@ -148,11 +150,21 @@ class _CreateEventScreenState
     }
   }
 
+  /// Room capacity caps are an admin-only constraint. Teachers and super
+  /// admins host on behalf of departments and frequently book rooms with
+  /// special arrangements (overflow seating, fire-marshal exceptions, etc.),
+  /// so they should be free to pick any venue and set any capacity. Only
+  /// students — who shouldn't be creating events anyway — see the limit.
+  bool get _enforceRoomCaps {
+    final user = ref.read(userModelProvider).asData?.value;
+    return user?.isStudent ?? true;
+  }
+
   Widget _buildLocationChip(CampusLocation loc,
       {bool isParking = false}) {
     final cap = int.tryParse(_capacityController.text.trim()) ?? 0;
     final maxCap = _maxFor(loc);
-    final tooSmall = cap > 0 && maxCap < cap;
+    final tooSmall = _enforceRoomCaps && cap > 0 && maxCap < cap;
     final unavailable = _unavailableLocationKeys.contains(loc.id);
     final disabled = tooSmall || unavailable;
     final selected =
@@ -242,7 +254,7 @@ class _CreateEventScreenState
     final campusLoc = CampusLocations.byId(locationKey);
     final roomMax = campusLoc == null ? null : _maxFor(campusLoc);
 
-    if (roomMax != null && cap > roomMax) {
+    if (_enforceRoomCaps && roomMax != null && cap > roomMax) {
       if (!mounted) return;
       final roomName = campusLoc?.name ?? 'selected room';
       ScaffoldMessenger.of(context).showSnackBar(
@@ -366,8 +378,10 @@ class _CreateEventScreenState
         title: const Text(
           'Create Event',
           style: TextStyle(
-            fontWeight: FontWeight.w700,
+            fontWeight: FontWeight.w800,
             fontSize: 18,
+            letterSpacing: -0.4,
+            color: Color(0xFF0F172A),
           ),
         ),
         actions: [
@@ -394,7 +408,7 @@ class _CreateEventScreenState
       body: Form(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 24),
           children: [
             // Title
             _buildCard(
@@ -421,7 +435,7 @@ class _CreateEventScreenState
                         : null,
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
 
             // Description
             _buildCard(
@@ -448,7 +462,7 @@ class _CreateEventScreenState
                         : null,
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
 
             // Category
             _buildCard(
@@ -474,7 +488,7 @@ class _CreateEventScreenState
                     () => _selectedCategory = val!),
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
 
             // Date/Time
             _buildCard(
@@ -529,7 +543,47 @@ class _CreateEventScreenState
               padding: const EdgeInsets.symmetric(
                   horizontal: 16, vertical: 4),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
+
+            // Capacity (placed before Location so the venue list can filter
+            // out rooms that are too small for the requested headcount).
+            _buildCard(
+              child: TextFormField(
+                controller: _capacityController,
+                keyboardType: TextInputType.number,
+                onChanged: (_) => setState(() {}),
+                decoration: InputDecoration(
+                  labelText: 'Capacity',
+                  hintText: 'Max attendees',
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  prefixIcon: Icon(Icons.people_rounded,
+                      color: AppConfig.primaryColor),
+                ),
+                validator: (val) {
+                  if (val == null || val.trim().isEmpty) {
+                    return 'Capacity is required';
+                  }
+                  final n = int.tryParse(val.trim());
+                  if (n == null) {
+                    return 'Must be a number';
+                  }
+                  if (n < 1) return 'Must be at least 1';
+                  if (!_enforceRoomCaps) return null;
+                  final key = CampusLocations.effectiveKeyFor(
+                      _selectedLocationKey,
+                      _locationController.text.trim());
+                  final loc = CampusLocations.byId(key);
+                  final maxCap = loc == null ? null : _maxFor(loc);
+                  if (loc != null && maxCap != null && n > maxCap) {
+                    return 'Max $maxCap for ${loc.name}';
+                  }
+                  return null;
+                },
+              ),
+            ),
+            const SizedBox(height: 8),
 
             // Location
             _buildCard(
@@ -643,45 +697,7 @@ class _CreateEventScreenState
               ),
               padding: EdgeInsets.zero,
             ),
-            const SizedBox(height: 12),
-
-            // Capacity
-            _buildCard(
-              child: TextFormField(
-                controller: _capacityController,
-                keyboardType: TextInputType.number,
-                onChanged: (_) => setState(() {}),
-                decoration: InputDecoration(
-                  labelText: 'Capacity',
-                  hintText: 'Max attendees',
-                  border: InputBorder.none,
-                  enabledBorder: InputBorder.none,
-                  focusedBorder: InputBorder.none,
-                  prefixIcon: Icon(Icons.people_rounded,
-                      color: AppConfig.primaryColor),
-                ),
-                validator: (val) {
-                  if (val == null || val.trim().isEmpty) {
-                    return 'Capacity is required';
-                  }
-                  final n = int.tryParse(val.trim());
-                  if (n == null) {
-                    return 'Must be a number';
-                  }
-                  if (n < 1) return 'Must be at least 1';
-                  final key = CampusLocations.effectiveKeyFor(
-                      _selectedLocationKey,
-                      _locationController.text.trim());
-                  final loc = CampusLocations.byId(key);
-                  final maxCap = loc == null ? null : _maxFor(loc);
-                  if (loc != null && maxCap != null && n > maxCap) {
-                    return 'Max $maxCap for ${loc.name}';
-                  }
-                  return null;
-                },
-              ),
-            ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
 
             // Vibe tags
             _buildCard(
@@ -762,7 +778,7 @@ class _CreateEventScreenState
               ),
               padding: EdgeInsets.zero,
             ),
-            const SizedBox(height: 28),
+            const SizedBox(height: 16),
 
             // Submit button
             SizedBox(
@@ -774,14 +790,17 @@ class _CreateEventScreenState
                       const Color(0xFF1565C0),
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(
-                      vertical: 16),
+                      vertical: 17),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(16),
                   ),
-                  elevation: 0,
+                  elevation: 4,
+                  shadowColor: const Color(0xFF1565C0)
+                      .withValues(alpha: 0.34),
                   textStyle: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
+                    letterSpacing: -0.3,
                   ),
                 ),
                 child: _isLoading
@@ -796,7 +815,7 @@ class _CreateEventScreenState
                     : const Text('Create Event'),
               ),
             ),
-            const SizedBox(height: 40),
+            const SizedBox(height: 24),
           ],
         ),
       ),
@@ -808,15 +827,22 @@ class _CreateEventScreenState
     EdgeInsets padding =
         const EdgeInsets.symmetric(horizontal: 4),
   }) {
+    // A clearly visible field card. We add a 1.2px border in NYIT-blue tint
+    // and a slightly stronger drop shadow so each option reads as its own
+    // tappable surface — earlier the cards looked like flat white space.
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: const Color(0xFFCBD5E1),
+          width: 1.2,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
           ),
         ],
       ),

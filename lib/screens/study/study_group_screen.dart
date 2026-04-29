@@ -642,12 +642,20 @@ class _StudyGroupCard extends ConsumerWidget {
   }
 
   String _formatTime(DateTime time) {
+    // Compare CALENDAR days, not 24-hour windows. The previous version used
+    // `time.difference(now).inDays` which rounds toward zero, so a meeting
+    // at 9am tomorrow viewed at 8pm today (~13h away) returned `inDays == 0`
+    // and got labeled "Today" — exactly the bug we're fixing.
     final now = DateTime.now();
-    final diff = time.difference(now);
-    if (diff.inDays == 0) {
+    final today = DateTime(now.year, now.month, now.day);
+    final meetDay = DateTime(time.year, time.month, time.day);
+    final dayDiff = meetDay.difference(today).inDays;
+    if (dayDiff == 0) {
       return 'Today, ${DateFormat('h:mm a').format(time)}';
-    } else if (diff.inDays == 1) {
+    } else if (dayDiff == 1) {
       return 'Tomorrow, ${DateFormat('h:mm a').format(time)}';
+    } else if (dayDiff == -1) {
+      return 'Yesterday, ${DateFormat('h:mm a').format(time)}';
     }
     return DateFormat('MMM d, h:mm a').format(time);
   }

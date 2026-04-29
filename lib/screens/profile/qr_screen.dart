@@ -23,7 +23,9 @@ class QrScreen extends ConsumerWidget {
         title: const Text(
           'My QR Code',
           style: TextStyle(
-            fontWeight: FontWeight.w700,
+            fontSize: 17,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.4,
             color: Color(0xFF1a3a6b),
           ),
         ),
@@ -63,13 +65,13 @@ class QrScreen extends ConsumerWidget {
                         Color(0xFF1565C0),
                       ],
                     ),
-                    borderRadius: BorderRadius.circular(20),
+                    borderRadius: BorderRadius.circular(24),
                     boxShadow: [
                       BoxShadow(
                         color: const Color(0xFF1565C0)
-                            .withOpacity(0.3),
-                        blurRadius: 20,
-                        offset: const Offset(0, 8),
+                            .withValues(alpha: 0.32),
+                        blurRadius: 24,
+                        offset: const Offset(0, 10),
                       ),
                     ],
                   ),
@@ -156,8 +158,9 @@ class QrScreen extends ConsumerWidget {
                         user.name,
                         style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 20,
-                          fontWeight: FontWeight.w700,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.5,
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -217,12 +220,13 @@ class QrScreen extends ConsumerWidget {
                   padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: const Color(0xFFEEF2F7)),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.06),
-                        blurRadius: 20,
-                        offset: const Offset(0, 4),
+                        color: Colors.black.withValues(alpha: 0.06),
+                        blurRadius: 22,
+                        offset: const Offset(0, 6),
                       ),
                     ],
                   ),
@@ -231,9 +235,10 @@ class QrScreen extends ConsumerWidget {
                       const Text(
                         'Student ID Card',
                         style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF1E293B),
+                          fontSize: 17,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.4,
+                          color: Color(0xFF0F172A),
                         ),
                       ),
                       const SizedBox(height: 4),
