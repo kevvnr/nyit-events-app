@@ -17,6 +17,13 @@
       "screenshotURLs": [],
       "versions": [
         {
+          "version": "1.9.2",
+          "date": "2026-04-28",
+          "localizedDescription": "v1.9.2 — Final version.\n\n• Single source-of-truth dedup so the feed, map, admin manage, super-admin dashboard, and web dashboard all show the same number of events (one card per real event, no doubles)\n• Firestore-side dedup pass collapses duplicate event documents on first super-admin sign-in (RSVPs, notifications, and past-event history are merged onto the canonical event)\n• RSVP count flicker eliminated — counts now go straight from N → N+1 with no intermediate \"+2\" snapshot, and never drift below 0\n• Map filter chips simplified: removed Upcoming, Today and Live Now share the row evenly, Parking sits as a clean inline toggle\n• Admin: room limits hidden from teachers (super-admin only), single delete action that notifies attendees\n• Study groups: \"Today at\" / \"Tomorrow at\" labels now compare calendar days, not 24-hour windows — a 9 AM meeting tomorrow no longer reads as today\n• Live auto-update everywhere: admin manage screen now streams from Firestore so RSVPs, edits, and new events appear without pull-to-refresh",
+          "downloadURL": "https://kevvnr.github.io/nyit-events-app/NYITCampusEvents.ipa",
+          "size": 20238398
+        },
+        {
           "version": "1.9.1",
           "date": "2026-04-28",
           "localizedDescription": "v1.9.1 — Polish + conflict guard.\n\n• Apple-style polish across the map, feed, profile and calendar (refined typography, softer shadows, larger radii, glass-effect controls)\n• Map: Parking toggle is now an inline filter chip; live-now badge upgraded to a glass pill\n• Calendar: hosted/RSVP'd/open events now appear with a date chip and status badge\n• Conflict guard: students can no longer RSVP to events that overlap with another RSVP — a clear message points back to the conflicting event\n• Fixed bottom overflow on the 'Tonight at NYIT' cards in the For You feed\n• Removed image upload from event creation while we wire up storage\n• Removed past-event toggles from feed and map for a focused upcoming-only view",
